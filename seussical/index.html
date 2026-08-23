@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Seussical</title>
+    <meta
+      name="description"
+      content="Rehearsal and performance calendar for Seussical."
+    />
+    <link rel="canonical" href="https://seussical.pages.dev/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Seussical" />
+    <meta property="og:url" content="https://seussical.pages.dev/" />
+    <meta property="og:title" content="Seussical" />
+    <meta
+      property="og:description"
+      content="Rehearsal and performance calendar."
+    />
+    <meta
+      property="og:image"
+      content="https://seussical.pages.dev/og.jpg"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Seussical" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Seussical" />
+    <meta
+      name="twitter:description"
+      content="Rehearsal and performance calendar."
+    />
+    <meta
+      name="twitter:image"
+      content="https://seussical.pages.dev/og.jpg"
+    />
+    <style>
+      :root {
+        --bg: #111;
+        --panel: #1a1a1a;
+        --text: #f4f1ea;
+        --muted: #b9b3a8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 32px 16px 48px;
+      }
+
+      @media (max-width: 700px) {
+        main {
+          padding: 20px 12px 16px;
+        }
+
+        p.lede {
+          margin-bottom: 18px;
+          font-size: 0.95rem;
+        }
+
+        .calendar {
+          min-height: 0;
+          border-radius: 8px;
+        }
+
+        .calendar iframe {
+          height: calc(100dvh - 9rem);
+          min-height: 70vh;
+        }
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2rem, 5vw, 3.2rem);
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-align: center;
+      }
+
+      p.lede {
+        margin: 0 0 28px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+
+      .calendar {
+        background: var(--panel);
+        border-radius: 12px;
+        overflow: hidden;
+        min-height: 600px;
+      }
+
+      .calendar iframe {
+        display: block;
+        width: 100%;
+        height: 75vh;
+        min-height: 600px;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Seussical</h1>
+      <p class="lede">Rehearsal and performance calendar</p>
+      <div class="calendar">
+        <iframe
+          id="calendar-frame"
+          title="Seussical calendar"
+          width="800"
+          height="600"
+          frameborder="0"
+        ></iframe>
+        <script>
+          (function () {
+            var frame = document.getElementById("calendar-frame");
+            var src = new URL(
+              "https://calendar.google.com/calendar/embed?height=600&wkst=1&ctz=America%2FIndiana%2FIndianapolis&showPrint=0&showTitle=0&showCalendars=0&src=ZmYwN2IwMzI1ZTgzNjBmMmYwMmRjOTUzMjIwNWUyNGYzMTFiOTY1Y2Q4OGM2ZGU4OWUwOGVjMjVmODI2Y2RiN0Bncm91cC5jYWxlbmRhci5nb29nbGUuY29t&color=%23616161"
+            );
+            function applyMode() {
+              src.searchParams.set(
+                "mode",
+                window.matchMedia("(max-width: 700px)").matches
+                  ? "AGENDA"
+                  : "MONTH"
+              );
+              frame.src = src.toString();
+            }
+            applyMode();
+            window
+              .matchMedia("(max-width: 700px)")
+              .addEventListener("change", applyMode);
+          })();
+        </script>
+      </div>
+    </main>
+  </body>
+</html>
