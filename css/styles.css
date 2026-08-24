@@ -188,6 +188,11 @@ a {
   max-width: 420px;
 }
 
+/* Transparent on desktop; becomes the portrait photo panel on mobile. */
+.hero-brand {
+  display: contents;
+}
+
 .hero-video {
   width: 234px;
   max-width: 100%;
@@ -612,22 +617,150 @@ a {
   }
 }
 
-@media (max-width: 560px) {
-  .hero-top {
-    flex-direction: column;
-    align-items: flex-start;
+/* Phones get the standalone mobile composition: a full-bleed portrait photo
+   with the logo over it, then a single centered column. */
+@media (max-width: 700px) {
+  .hero {
+    background: #000;
   }
 
-  .hero-actions {
-    width: 100%;
-    justify-content: space-between;
+  .hero::after {
+    display: none;
+  }
+
+  .hero-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 0 20px 34px;
+  }
+
+  /* Flatten the wrappers so hero items can be ordered individually. */
+  .hero-top,
+  .hero-actions,
+  .hero-left {
+    display: contents;
+  }
+
+  .hero-brand {
+    order: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: calc(100% + 40px);
+    margin: 0 -20px 24px;
+    padding: 20px 20px 0;
+    aspect-ratio: 346 / 586;
+    background-color: #000;
+    background-image: linear-gradient(
+        180deg,
+        rgba(0, 0, 0, 0.6) 0%,
+        rgba(0, 0, 0, 0.2) 24%,
+        rgba(0, 0, 0, 0) 44%
+      ),
+      url("../images/hero-mobile.jpg");
+    background-position: top center, top center;
+    background-size: 100% 100%, cover;
+    background-repeat: no-repeat, no-repeat;
   }
 
   .roles {
-    font-size: 13px;
+    width: 100%;
+    font-size: 11px;
+  }
+
+  .logo {
+    width: 87.5%;
+    max-width: 320px;
+  }
+
+  /* Wix omits the hero video on mobile. */
+  .hero-video {
+    display: none;
   }
 
   .hero-copy {
-    font-size: 16px;
+    order: 3;
+    max-width: 100%;
+    margin: 0 0 30px;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .booking {
+    order: 4;
+    margin: 0 0 42px;
+  }
+
+  .quotes {
+    order: 5;
+    width: 100%;
+    gap: 44px;
+    margin: 0 0 36px;
+  }
+
+  .quote p {
+    font-size: 25px;
+  }
+
+  .social {
+    order: 6;
+    flex-direction: row-reverse;
+    gap: 12px;
+  }
+
+  .as-seen {
+    padding: 30px 16px 26px;
+  }
+
+  .as-seen-row {
+    gap: 18px;
+  }
+
+  .as-seen h2 {
+    flex: 0 0 100%;
+    text-align: center;
+    font-size: 14px;
+  }
+
+  .as-seen img.fool-us {
+    height: 45px;
+  }
+
+  .as-seen img.cw {
+    height: 25px;
+  }
+
+  .as-seen img.lounge-logo {
+    height: 56px;
+  }
+
+  .featured {
+    padding: 16px 16px 36px;
+  }
+
+  .contact {
+    padding: 34px 16px 28px;
+  }
+
+  .contact h2 {
+    margin-bottom: 30px;
+    font-size: 28px;
+  }
+
+  .contact-grid,
+  .tile {
+    min-height: 0;
+  }
+
+  .tile {
+    min-height: 200px;
+  }
+
+  .legal {
+    margin-top: 30px;
+    font-size: 14px;
   }
 }
