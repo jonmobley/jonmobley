@@ -181,10 +181,8 @@
         flex: 1 1 0;
         min-height: 48px;
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 2px;
         padding: 6px 4px;
         border: 1px solid var(--rule);
         border-radius: 10px;
@@ -193,28 +191,17 @@
         font-family: inherit;
         font-size: 11px;
         font-weight: 700;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
         cursor: pointer;
         transition: background-color 0.18s ease, color 0.18s ease,
           border-color 0.18s ease;
       }
 
-      .tab .num {
-        font-size: 9px;
-        font-weight: 600;
-        letter-spacing: 0.16em;
-        color: #b4b4b4;
-      }
-
       .tab[aria-selected="true"] {
         background: var(--black);
         border-color: var(--black);
         color: #fff;
-      }
-
-      .tab[aria-selected="true"] .num {
-        color: #9b9b9b;
       }
 
       .tab:focus-visible {
@@ -481,15 +468,50 @@
         border-bottom: 1px solid #c9c9c9;
       }
 
-      /* Wider screens keep the single column, just with more breathing room.
-         The reading measure stays capped by --page so lines never run long. */
+      /* Wider screens split into questions plus a sidebar. Grid placement is
+         explicit so the sidebar order is independent of the mobile stacking
+         order in the markup (recap, truths, questions, prayer). */
 
       @media (min-width: 900px) {
-        .panel-head .core,
-        .card,
+        :root {
+          --page: 1080px;
+        }
+
+        .panel-body {
+          display: grid;
+          grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+          column-gap: 40px;
+          row-gap: 14px;
+          align-items: start;
+        }
+
         .questions-block {
-          padding-left: 20px;
-          padding-right: 20px;
+          grid-column: 1;
+          grid-row: 1 / span 3;
+          margin: 0;
+        }
+
+        .questions-block > .label {
+          margin-top: 0;
+        }
+
+        .card-recap {
+          grid-column: 2;
+          grid-row: 1;
+        }
+
+        .card-truths {
+          grid-column: 2;
+          grid-row: 2;
+        }
+
+        .card.prayer {
+          grid-column: 2;
+          grid-row: 3;
+        }
+
+        .panel-body .card {
+          margin-bottom: 0;
         }
 
         ol.questions li {
@@ -555,8 +577,7 @@
           aria-controls="session-1"
           aria-selected="true"
         >
-          <span class="num">Session 01</span>
-          On Lock
+          Session 1
         </button>
         <button
           class="tab"
@@ -566,8 +587,7 @@
           aria-selected="false"
           tabindex="-1"
         >
-          <span class="num">Session 02</span>
-          Unlocked
+          Session 2
         </button>
         <button
           class="tab"
@@ -577,8 +597,7 @@
           aria-selected="false"
           tabindex="-1"
         >
-          <span class="num">Session 03</span>
-          Lock In
+          Session 3
         </button>
       </div>
     </nav>
@@ -602,7 +621,7 @@
         </div>
 
         <div class="panel-body">
-          <div class="card">
+          <div class="card card-recap">
             <span class="label">Session recap</span>
             <dl class="field">
               <dt>Main truth</dt>
@@ -614,7 +633,7 @@
             </dl>
           </div>
 
-          <div class="card">
+          <div class="card card-truths">
             <span class="label">Truths</span>
             <ul class="truths">
               <li>
@@ -702,7 +721,7 @@
         </div>
 
         <div class="panel-body">
-          <div class="card">
+          <div class="card card-recap">
             <span class="label">Session recap</span>
             <dl class="field">
               <dt>Main truth</dt>
@@ -717,7 +736,7 @@
             </dl>
           </div>
 
-          <div class="card">
+          <div class="card card-truths">
             <span class="label">Truths</span>
             <ul class="truths">
               <li>
@@ -811,7 +830,7 @@
         </div>
 
         <div class="panel-body">
-          <div class="card">
+          <div class="card card-recap">
             <span class="label">Session recap</span>
             <dl class="field">
               <dt>Main truth</dt>
@@ -823,7 +842,7 @@
             </dl>
           </div>
 
-          <div class="card">
+          <div class="card card-truths">
             <span class="label">Truths</span>
             <ul class="truths">
               <li>
