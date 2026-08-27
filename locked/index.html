@@ -219,6 +219,18 @@
         display: none;
       }
 
+      /* Panels are focusable so the tab switcher and #session links can move
+         focus to the content, but a ring around a page-sized region reads as an
+         error state rather than a cursor position. */
+      .panel:focus,
+      .panel:focus-visible {
+        outline: none;
+      }
+
+      .panel-head {
+        margin-bottom: 24px;
+      }
+
       .panel-head h2 {
         margin: 0;
         font-size: clamp(30px, 9vw, 46px);
