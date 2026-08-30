@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Puzzle | Jon Mobley</title>
+    <meta name="description" content="Puzzle." />
+    <link rel="canonical" href="https://jonmobley.com/puzzle/" />
+    <link rel="icon" href="/images/favicon-192.png" type="image/png" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Jon Mobley" />
+    <meta property="og:url" content="https://jonmobley.com/puzzle/" />
+    <meta property="og:title" content="Puzzle | Jon Mobley" />
+    <meta property="og:description" content="Puzzle." />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Puzzle | Jon Mobley" />
+
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        color: #fff;
+        overflow: hidden;
+      }
+
+      body {
+        min-height: 100dvh;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+          Arial, sans-serif;
+      }
+
+      h1 {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .stage {
+        display: grid;
+        place-items: center;
+        width: 100%;
+        height: 100dvh;
+        height: 100svh;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right)
+          env(safe-area-inset-bottom) env(safe-area-inset-left);
+      }
+
+      .player {
+        position: relative;
+        width: min(100%, calc(100dvh * 9 / 16));
+        height: min(100dvh, calc(100vw * 16 / 9));
+        max-height: 100%;
+        background: #000;
+      }
+
+      .player iframe {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Puzzle</h1>
+    <div class="stage">
+      <div class="player">
+        <iframe
+          src="https://iframe.mediadelivery.net/embed/510518/ef4d9867-fd27-4325-b6c7-ecabb033f5f1?autoplay=false&loop=false&muted=false&preload=true&responsive=true"
+          title="Puzzle video"
+          loading="lazy"
+          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowfullscreen
+        ></iframe>
+      </div>
+    </div>
+  </body>
+</html>
