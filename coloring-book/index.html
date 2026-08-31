@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Coloring Book | Jon Mobley</title>
+    <meta name="description" content="Coloring Book." />
+    <link rel="canonical" href="https://jonmobley.com/coloring-book/" />
+    <link rel="icon" href="/images/favicon-192.png" type="image/png" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Jon Mobley" />
+    <meta property="og:url" content="https://jonmobley.com/coloring-book/" />
+    <meta property="og:title" content="Coloring Book | Jon Mobley" />
+    <meta property="og:description" content="Coloring Book." />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Coloring Book | Jon Mobley" />
+
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        color: #fff;
+        overflow: hidden;
+      }
+
+      body {
+        min-height: 100dvh;
+        min-height: 100svh;
+        display: grid;
+        place-items: center;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+          Arial, sans-serif;
+      }
+
+      h1 {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .stage {
+        display: grid;
+        place-items: center;
+        width: 100%;
+        height: 100dvh;
+        height: 100svh;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right)
+          env(safe-area-inset-bottom) env(safe-area-inset-left);
+      }
+
+      .player {
+        position: relative;
+        overflow: hidden;
+        width: min(100%, round(nearest, calc(100dvh * 9 / 16), 1px));
+        height: min(100dvh, round(nearest, calc(100vw * 16 / 9), 1px));
+        max-height: 100%;
+        background: #000;
+      }
+
+      .player iframe {
+        position: absolute;
+        display: block;
+        top: 50%;
+        left: 50%;
+        width: calc(100% + 4px);
+        height: calc(100% + 4px);
+        transform: translate(-50%, -50%);
+        border: 0;
+        background: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Coloring Book</h1>
+    <div class="stage">
+      <div class="player">
+        <iframe
+          src="https://iframe.mediadelivery.net/embed/510518/c2de3225-b3ef-46ba-a051-4e6cb40880b6?autoplay=false&loop=false&muted=false&preload=true&responsive=false"
+          title="Coloring Book video"
+          loading="lazy"
+          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowfullscreen
+        ></iframe>
+      </div>
+    </div>
+  </body>
+</html>
