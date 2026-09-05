@@ -1,35 +1,3 @@
-@font-face {
-  font-family: "lulo-clean";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("https://static.parastorage.com/fonts/v2/e3cf8f7e-35c4-446f-9b93-de93e989f66f/v1/lulo-clean-w01-one-bold.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "avenida";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("https://static.parastorage.com/fonts/v2/dc8f9c70-edcd-4e03-b2e5-5fc23398a067/v1/avenida-w01.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "proxima-n";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("https://static.parastorage.com/fonts/v2/c24fcada-6239-48bc-8b88-9288338191c9/v1/proxima-n-w01-reg.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "helvetica-w01-bold";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("https://static.parastorage.com/fonts/v2/2f12de04-5ca4-4ada-9e66-a958673b12b5/v1/helvetica-w01-bold.woff2") format("woff2");
-}
-
 :root {
   --black: #000;
   --white: #fff;
@@ -50,6 +18,17 @@
 
 html {
   scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .booking,
+  .hero-video .wistia_swatch {
+    transition: none;
+  }
 }
 
 body {
@@ -73,17 +52,27 @@ a {
 
 .skip-link {
   position: absolute;
-  left: -999px;
-  top: 0;
-}
-
-.skip-link:focus {
   left: 16px;
-  top: 16px;
+  top: 0;
   z-index: 100;
+  transform: translateY(-120%);
   background: var(--white);
   color: var(--black);
   padding: 8px 12px;
+}
+
+.skip-link:focus {
+  transform: translateY(16px);
+}
+
+:focus-visible {
+  outline: 2px solid var(--button);
+  outline-offset: 3px;
+}
+
+.hero :focus-visible,
+.play:focus-visible {
+  outline-color: var(--white);
 }
 
 .wrap {
@@ -98,7 +87,7 @@ a {
   position: relative;
   min-height: 644px;
   overflow: hidden;
-  background: #000 url("../images/hero-wide.jpg") center / cover no-repeat;
+  background: #000 url("/images/hero-wide.jpg") center / cover no-repeat;
 }
 
 .hero::after {
@@ -257,6 +246,12 @@ a {
   color: var(--gold);
 }
 
+.logo-wrap {
+  margin: 0;
+  width: 404px;
+  max-width: 100%;
+}
+
 .logo {
   width: 404px;
   max-width: 100%;
@@ -334,7 +329,7 @@ a {
 
 .as-seen h2 {
   margin: 0;
-  font-family: "lulo-clean", "League Spartan", Montserrat, sans-serif;
+  font-family: "League Spartan", Montserrat, sans-serif;
   font-weight: 400;
   font-size: 20px;
   letter-spacing: 0.04em;
@@ -393,7 +388,7 @@ a {
 
 .featured-kicker {
   margin: 0;
-  font-family: "proxima-n", Montserrat, sans-serif;
+  font-family: Montserrat, sans-serif;
   font-weight: 400;
   font-size: clamp(14px, 1.6vw, 19px);
   letter-spacing: 0.25em;
@@ -403,10 +398,10 @@ a {
 
 .featured-title {
   margin: 4px 0 0;
-  font-family: avenida, "Great Vibes", cursive;
+  font-family: "Great Vibes", cursive;
   font-weight: 400;
   font-size: clamp(36px, 6vw, 68px);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   color: rgb(255, 255, 254);
   line-height: 1.1;
 }
@@ -455,7 +450,7 @@ a {
 .contact h2 {
   margin: 0 auto 50px;
   text-align: center;
-  font-family: "helvetica-w01-bold", Helvetica, Arial, sans-serif;
+  font-family: Raleway, Helvetica, Arial, sans-serif;
   font-weight: 700;
   font-size: 46px;
   letter-spacing: 0.15em;
@@ -496,7 +491,7 @@ a {
 }
 
 .tile-mail {
-  background-image: url("../images/hero-wide.jpg");
+  background-image: url("/images/hero-wide.jpg");
 }
 
 .tile-mail::before {
@@ -504,7 +499,7 @@ a {
 }
 
 .tile-phone {
-  background-image: url("../images/video-poster.jpg");
+  background-image: url("/images/video-poster.jpg");
 }
 
 .tile-phone::before {
@@ -512,7 +507,7 @@ a {
 }
 
 .tile-fb {
-  background-image: url("../images/contact-3.jpg");
+  background-image: url("/images/contact-3.jpg");
 }
 
 .tile-fb::before {
@@ -555,7 +550,7 @@ a {
   line-height: 1.6;
 }
 
-.tile-phone p {
+.tile-phone a.label {
   color: #fff;
   letter-spacing: 0.1em;
   line-height: 1.7;
@@ -660,7 +655,7 @@ a {
         rgba(0, 0, 0, 0.2) 24%,
         rgba(0, 0, 0, 0) 44%
       ),
-      url("../images/hero-mobile.jpg");
+      url("/images/hero-mobile.jpg");
     background-position: top center, top center;
     background-size: 100% 100%, cover;
     background-repeat: no-repeat, no-repeat;
@@ -671,9 +666,14 @@ a {
     font-size: 11px;
   }
 
-  .logo {
+  .logo-wrap {
     width: 87.5%;
     max-width: 320px;
+  }
+
+  .logo {
+    width: 100%;
+    max-width: none;
   }
 
   /* Wix omits the hero video on mobile. */

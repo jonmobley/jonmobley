@@ -10,6 +10,7 @@
     />
     <link rel="canonical" href="https://jonmobley.com/locked/" />
     <link rel="icon" href="/images/favicon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/images/favicon-192.png" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Jon Mobley" />
@@ -19,9 +20,9 @@
       property="og:description"
       content="A 3-part keynote series on Romans 8. Belonging, Identity, Purpose."
     />
-    <meta property="og:image" content="https://jonmobley.com/images/locked-logo.jpg" />
-    <meta property="og:image:width" content="1024" />
-    <meta property="og:image:height" content="512" />
+    <meta property="og:image" content="https://jonmobley.com/images/og-locked.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="LOCKED" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="LOCKED — Youth Breakout Discussion" />
@@ -29,7 +30,7 @@
       name="twitter:description"
       content="A 3-part keynote series on Romans 8. Belonging, Identity, Purpose."
     />
-    <meta name="twitter:image" content="https://jonmobley.com/images/locked-logo.jpg" />
+    <meta name="twitter:image" content="https://jonmobley.com/images/og-locked.jpg" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -61,6 +62,16 @@
         scroll-behavior: smooth;
       }
 
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        .tab {
+          transition: none;
+        }
+      }
+
       body {
         margin: 0;
         background: #fff;
@@ -85,16 +96,17 @@
 
       .skip-link {
         position: absolute;
-        left: -9999px;
-      }
-
-      .skip-link:focus {
         left: 16px;
-        top: 16px;
+        top: 0;
         z-index: 100;
+        transform: translateY(-120%);
         background: #fff;
         color: #000;
         padding: 8px 12px;
+      }
+
+      .skip-link:focus {
+        transform: translateY(16px);
       }
 
       /* Masthead */
@@ -276,9 +288,11 @@
         padding: 4px 9px;
         background: var(--chip);
         border-radius: 4px;
+        font-family: inherit;
         font-size: 10px;
         font-weight: 700;
         letter-spacing: 0.16em;
+        line-height: inherit;
         text-transform: uppercase;
         color: #6f6f6f;
       }
@@ -614,7 +628,7 @@
       </div>
     </nav>
 
-    <main class="wrap">
+    <main class="wrap" id="main">
       <!-- SESSION 01 -->
       <section
         class="panel"
@@ -634,7 +648,7 @@
 
         <div class="panel-body">
           <div class="card card-recap">
-            <span class="label">Session recap</span>
+            <h3 class="label">Session recap</h3>
             <dl class="field">
               <dt>Main truth</dt>
               <dd>Belonging is received through Jesus, not earned by performance.</dd>
@@ -646,7 +660,7 @@
           </div>
 
           <div class="card card-truths">
-            <span class="label">Truths</span>
+            <h3 class="label">Truths</h3>
             <ul class="truths">
               <li>
                 <svg viewBox="0 0 24 30" aria-hidden="true">
@@ -681,7 +695,7 @@
           </div>
 
           <div class="questions-block">
-            <span class="label">Discussion questions</span>
+            <h3 class="label">Discussion questions</h3>
             <ol class="questions">
               <li>
                 Where in your life do you feel the strongest pressure to be
@@ -705,7 +719,7 @@
           </div>
 
           <div class="card prayer">
-            <span class="label">Prayer prompt</span>
+            <h3 class="label">Prayer prompt</h3>
             <p>
               Jesus, help me stop performing for a place and rest in the fact that
               I belong to You.
@@ -734,7 +748,7 @@
 
         <div class="panel-body">
           <div class="card card-recap">
-            <span class="label">Session recap</span>
+            <h3 class="label">Session recap</h3>
             <dl class="field">
               <dt>Main truth</dt>
               <dd>
@@ -749,7 +763,7 @@
           </div>
 
           <div class="card card-truths">
-            <span class="label">Truths</span>
+            <h3 class="label">Truths</h3>
             <ul class="truths">
               <li>
                 <svg viewBox="0 0 24 30" aria-hidden="true">
@@ -787,7 +801,7 @@
           </div>
 
           <div class="questions-block">
-            <span class="label">Discussion questions</span>
+            <h3 class="label">Discussion questions</h3>
             <ol class="questions">
               <li>What labels have other people, culture, or your own thoughts put on you?</li>
               <li>
@@ -814,7 +828,7 @@
           </div>
 
           <div class="card prayer">
-            <span class="label">Prayer prompt</span>
+            <h3 class="label">Prayer prompt</h3>
             <p>
               Jesus, help me reject false labels and believe what is true about who I
               am in You.
@@ -843,7 +857,7 @@
 
         <div class="panel-body">
           <div class="card card-recap">
-            <span class="label">Session recap</span>
+            <h3 class="label">Session recap</h3>
             <dl class="field">
               <dt>Main truth</dt>
               <dd>Purpose begins by faithfully following Jesus where I am right now.</dd>
@@ -855,7 +869,7 @@
           </div>
 
           <div class="card card-truths">
-            <span class="label">Truths</span>
+            <h3 class="label">Truths</h3>
             <ul class="truths">
               <li>
                 <svg viewBox="0 0 24 30" aria-hidden="true">
@@ -890,7 +904,7 @@
           </div>
 
           <div class="questions-block">
-            <span class="label">Discussion questions</span>
+            <h3 class="label">Discussion questions</h3>
             <ol class="questions">
               <li>
                 When you think about your future, what creates the most pressure for
@@ -920,7 +934,7 @@
           </div>
 
           <div class="card prayer">
-            <span class="label">Prayer prompt</span>
+            <h3 class="label">Prayer prompt</h3>
             <p>
               Jesus, help me stop obsessing over the whole future and take the next
               faithful step with You today.
@@ -930,7 +944,7 @@
       </section>
 
       <section class="progression" aria-label="Series progression">
-        <span class="label">Series progression</span>
+        <h2 class="label">Series progression</h2>
         <ol>
           <li><span class="step">01</span><span><b>Belonging:</b> I am His.</span></li>
           <li><span class="step">02</span><span><b>Identity:</b> I know who I am.</span></li>
