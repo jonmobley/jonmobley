@@ -96,6 +96,10 @@ img {
   padding: 8px 0 24px;
 }
 
+.form-stage .wrap {
+  position: relative;
+}
+
 .booking-form {
   display: block;
   width: 100%;
@@ -105,7 +109,32 @@ img {
      iframe has scrolling="no", so this must exceed the form's natural height
      (~1990px on desktop, ~2005px on phones). */
   height: 2200px;
-  transition: height 0.2s ease;
+  /* Hidden until nxsportal reports it has rendered, so the form document's
+     light default background never flashes against the black page. */
+  opacity: 0;
+  transition: height 0.2s ease, opacity 0.3s ease;
+}
+
+.booking-form.is-live {
+  opacity: 1;
+}
+
+.loading {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 96px;
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
+
+.is-live ~ .loading {
+  display: none;
 }
 
 .fallback {
