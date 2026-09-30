@@ -70,8 +70,7 @@ a {
   outline-offset: 3px;
 }
 
-.hero :focus-visible,
-.play:focus-visible {
+.hero :focus-visible {
   outline-color: var(--white);
 }
 
@@ -352,7 +351,7 @@ a {
   width: auto;
 }
 
-/* Featured video */
+/* Featured image */
 
 .featured {
   position: relative;
@@ -360,23 +359,33 @@ a {
   padding: 24px 16px 56px;
 }
 
-.video-frame {
+.featured-frame {
   position: relative;
   width: min(910px, 100%);
   margin: 0 auto;
   aspect-ratio: 910 / 514;
-  background: #000 center / cover no-repeat;
+  background: #000;
   overflow: hidden;
 }
 
-.video-frame::before {
+.featured-frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.featured-frame::before {
   content: "";
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.25);
+  z-index: 1;
 }
 
-.video-copy {
+.featured-copy {
   position: absolute;
   z-index: 2;
   left: 0;
@@ -404,39 +413,6 @@ a {
   letter-spacing: 0.04em;
   color: rgb(255, 255, 254);
   line-height: 1.1;
-}
-
-.play {
-  position: absolute;
-  z-index: 3;
-  left: 50%;
-  top: 58%;
-  transform: translate(-50%, -50%);
-  width: 50px;
-  height: 50px;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.play:hover {
-  opacity: 0.8;
-}
-
-.play svg {
-  width: 50px;
-  height: 50px;
-  display: block;
-}
-
-.video-frame iframe {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  z-index: 4;
 }
 
 /* Contact */
