@@ -9,6 +9,8 @@
     <link rel="apple-touch-icon" href="/images/favicon-192.png" />
     <meta name="theme-color" content="#000000" />
     <style>
+      :focus, :focus-visible { outline: none !important; }
+      * { -webkit-tap-highlight-color: transparent; }
       * {
         box-sizing: border-box;
       }
@@ -62,11 +64,6 @@
 
       a:hover {
         background: rgb(43, 114, 174);
-      }
-
-      a:focus-visible {
-        outline: 2px solid #fff;
-        outline-offset: 3px;
       }
     </style>
   </head>

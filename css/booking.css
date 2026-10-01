@@ -54,9 +54,13 @@ img {
   transform: translateY(16px);
 }
 
+/* No focus rings or outlines (the owner's choice), and no grey flash on tap. */
+:focus,
 :focus-visible {
-  outline: 2px solid var(--white);
-  outline-offset: 3px;
+  outline: none !important;
+}
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .visually-hidden {

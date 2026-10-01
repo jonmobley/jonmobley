@@ -65,13 +65,13 @@ a {
   transform: translateY(16px);
 }
 
+/* No focus rings or outlines (the owner's choice), and no grey flash on tap. */
+:focus,
 :focus-visible {
-  outline: 2px solid var(--button);
-  outline-offset: 3px;
+  outline: none !important;
 }
-
-.hero :focus-visible {
-  outline-color: var(--white);
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .wrap {

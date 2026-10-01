@@ -1,3 +1,12 @@
+/* No focus rings or outlines (the owner's choice), and no grey flash on tap. */
+:focus,
+:focus-visible {
+  outline: none !important;
+}
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
 *,
 *::before,
 *::after {

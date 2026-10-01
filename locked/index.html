@@ -40,6 +40,8 @@
     />
 
     <style>
+      :focus, :focus-visible { outline: none !important; }
+      * { -webkit-tap-highlight-color: transparent; }
       :root {
         --ink: #1a1a1a;
         --ink-soft: #3d3d3d;
@@ -214,11 +216,6 @@
         background: var(--black);
         border-color: var(--black);
         color: #fff;
-      }
-
-      .tab:focus-visible {
-        outline: 2px solid #000;
-        outline-offset: 2px;
       }
 
       /* Session panel */
