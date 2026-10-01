@@ -1,0 +1,9 @@
+{
+  "name": "jonmobley-site",
+  "private": true,
+  "version": "0.0.0",
+  "description": "jonmobley.com static site (no build step). This file exists for browser tests only.",
+  "devDependencies": {
+    "@playwright/test": "1.62.0"
+  }
+}

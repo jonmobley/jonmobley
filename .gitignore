@@ -2,3 +2,7 @@
 .vscode
 .idea
 *.log
+# Studio browser tests
+e2e/.auth/
+test-results/
+playwright-report/
