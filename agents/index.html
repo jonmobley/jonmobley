@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Book Jon with an AI assistant | Jon Mobley</title>
+    <meta name="description" content="AI assistants like ChatGPT and Claude can check Jon Mobley's dates, get an exact quote and book a show directly. Here's how." />
+    <link rel="canonical" href="https://jonmobley.com/agents/" />
+    <link rel="icon" href="/images/favicon-192.png" type="image/png" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="Instructions for AI agents" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Jon Mobley" />
+    <meta property="og:url" content="https://jonmobley.com/agents/" />
+    <meta property="og:title" content="Book Jon with an AI assistant" />
+    <meta property="og:description" content="Check dates, get a quote and book Jon Mobley straight from ChatGPT, Claude or any AI assistant." />
+    <meta property="og:image" content="https://jonmobley.com/images/og-home.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :focus, :focus-visible { outline: none !important; }
+      * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+      body { margin: 0; background: #000; color: #fff; font: 17px/1.6 "Montserrat", system-ui, sans-serif; }
+      main { max-width: 760px; margin: 0 auto; padding: 48px 20px 80px; }
+      .logo { display: block; width: 180px; margin: 0 0 36px; }
+      h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1.1; margin: 0 0 14px; letter-spacing: -0.01em; }
+      .lead { color: #ccc; font-size: 19px; margin: 0 0 34px; }
+      h2 { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: #C9A669; margin: 40px 0 12px; }
+      ol { padding-left: 22px; margin: 0; }
+      li { margin: 8px 0; color: #ddd; }
+      .card { background: #111; border: 1px solid #262626; border-radius: 14px; padding: 18px 20px; margin: 12px 0; }
+      .card b { color: #fff; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 6px; padding: 2px 6px; color: #FFCF60; word-break: break-all; }
+      .copy { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+      button { font: inherit; font-size: 14px; font-weight: 600; background: #469AE1; color: #fff; border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer; }
+      button:hover { background: #2B72AE; }
+      a { color: #469AE1; }
+      .muted { color: #999; font-size: 15px; }
+      .human { margin-top: 44px; padding-top: 24px; border-top: 1px solid #222; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a href="/"><img class="logo" src="/images/logo.png" alt="Jon Mobley" /></a>
+      <h1>Book Jon with an AI assistant</h1>
+      <p class="lead">Planning an event with ChatGPT, Claude or another AI assistant? It can check Jon's dates, give you an exact price and hold your date — no forms.</p>
+
+      <h2>How it works</h2>
+      <ol>
+        <li>Your assistant looks up Jon's shows, prices and open dates.</li>
+        <li>It gets an exact quote for your date, start time and show.</li>
+        <li>Once you approve, it holds the date and sends your request to Jon.</li>
+        <li>When Jon accepts, you get an email to sign the agreement and pay the deposit — your booking is confirmed the moment it's paid.</li>
+      </ol>
+
+      <h2>Connect your assistant</h2>
+      <div class="card">
+        <b>MCP server (ChatGPT, Claude and other assistants that support connectors)</b>
+        <div class="copy"><code id="mcp">https://jonmobley.com/mcp</code><button type="button" data-copy="mcp">Copy</button></div>
+        <p class="muted">Add it as a custom connector, then ask: “Is Jon Mobley free on March 14 for a 60-minute show?”</p>
+      </div>
+      <div class="card">
+        <b>For developers and browsing agents</b>
+        <p class="muted" style="margin:6px 0 0">Instructions: <a href="/llms.txt">jonmobley.com/llms.txt</a> · JSON API: <code>GET https://jonmobley.com/api/agent</code></p>
+      </div>
+
+      <div class="human">
+        <p class="muted">Prefer a person? Use the <a href="/booking/">booking form</a>, email <a href="mailto:booking@jonmobley.com">booking@jonmobley.com</a> or call <a href="tel:+13174261270">317-426-1270</a>.</p>
+      </div>
+    </main>
+    <script>
+      document.querySelectorAll("[data-copy]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(document.getElementById(b.dataset.copy).textContent);
+            b.textContent = "Copied";
+            setTimeout(() => (b.textContent = "Copy"), 1500);
+          } catch {}
+        }),
+      );
+    </script>
+  </body>
+</html>

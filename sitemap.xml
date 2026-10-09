@@ -26,4 +26,7 @@
     <loc>https://jonmobley.com/seussical/</loc>
     <changefreq>monthly</changefreq>
   </url>
+  <url>
+    <loc>https://jonmobley.com/agents/</loc>
+  </url>
 </urlset>
