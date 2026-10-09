@@ -1,6 +1,7 @@
 // Backstage: Jon's private trick library, set lists and playlists, with a chat assistant.
 // Plain ES module, no build step. Preact + htm are vendored in ./vendor.
 import { html, render, useState, useEffect, useRef, useMemo, useCallback } from "./vendor/preact-htm.js";
+import { DEMO_TRICKS, DEMO_SETLISTS, DEMO_PLAYLISTS, adopt } from "./demo.js";
 
 // ---------- small helpers ----------
 
@@ -257,7 +258,15 @@ function Backstage({ onOut }) {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const ctx = { tricks, setlists, playlists, load, setToast, setShow };
+  // While a section is empty it shows samples; `real` is what's actually saved.
+  const sample = (list, demo) => (list && list.length === 0 ? demo : list);
+  const ctx = {
+    tricks: sample(tricks, DEMO_TRICKS),
+    setlists: sample(setlists, DEMO_SETLISTS),
+    playlists: sample(playlists, DEMO_PLAYLISTS),
+    real: { tricks, setlists, playlists },
+    load, setToast, setShow,
+  };
   const [section, id] = route;
   const tab = ["sets", "playlists"].includes(section) ? section : "tricks";
 
@@ -301,9 +310,22 @@ function Backstage({ onOut }) {
 function Cover({ trick }) {
   const img = trick.images.find(isImageKey);
   return html`<div class="cover">
-    ${img ? html`<img src=${mediaUrl(img)} alt="" loading="lazy" />` : html`<span class="initial">${(trick.name[0] || "?").toUpperCase()}</span>`}
+    ${img
+      ? html`<img src=${mediaUrl(img)} alt="" loading="lazy" />`
+      : trick.emoji
+        ? html`<span class="emoji">${trick.emoji}</span>`
+        : html`<span class="initial">${(trick.name[0] || "?").toUpperCase()}</span>`}
   </div>`;
 }
+
+function SampleNote({ list, what, newPath }) {
+  if (!list?.[0]?.demo) return null;
+  return html`<div class="sample-note">
+    <b>These are samples</b> to show how ${what} work. They disappear when you add your own.
+    Open one and press <b>Add to my library</b> to keep it, or <a href=${`#/${newPath}`}>start fresh</a>.
+  </div>`;
+}
+const SampleTag = ({ item }) => (item.demo ? html`<span class="sample-tag">Sample</span>` : null);
 
 function TrickList({ ctx }) {
   const [q, setQ] = useState(() => store.get("trick-q") || "");
@@ -334,6 +356,7 @@ function TrickList({ ctx }) {
       <button class="btn primary" onClick=${() => go("tricks/new")}><${Icon} name="plus" />New trick</button>
     </div>
     <div class="scroll pad">
+      <${SampleNote} list=${tricks} what="tricks" newPath="tricks/new" />
       ${!tricks
         ? null
         : tricks.length === 0
@@ -346,7 +369,7 @@ function TrickList({ ctx }) {
                   <div class="meta">
                     <div class="name">${t.name}</div>
                     <div class="sub">${[t.category, t.duration_min ? `${t.duration_min} min` : ""].filter(Boolean).join(" · ") || " "}</div>
-                    <span class=${`pill ${t.status}`}>${statusLabel(t.status)}</span>
+                    <div class="pills"><span class=${`pill ${t.status}`}>${statusLabel(t.status)}</span><${SampleTag} item=${t} /></div>
                   </div>
                 </button>`)}
               </div>`}
@@ -367,18 +390,21 @@ function useDraft(id, list, blank) {
   const [missing, setMissing] = useState(false);
   useEffect(() => {
     if (isNew || dirty) return;
-    if (fromList) setDraft(structuredClone(fromList));
-    else if (list) setMissing(true);
+    if (fromList) { setDraft(structuredClone(fromList)); setMissing(false); }
+    else if (list && !draft?.demo) setMissing(true);
   }, [fromList, list]);
   const set = (patch) => { setDraft((d) => ({ ...d, ...patch })); setDirty(true); };
   return { draft, set, dirty, setDirty, isNew, missing, setDraft };
 }
 
-function SaveBar({ dirty, busy, err, isNew, onSave, onDelete, what }) {
+function SaveBar({ dirty, busy, err, isNew, sample, onSave, onDelete, what }) {
+  const note = err || (sample ? `This is a sample ${what}. Edit it if you like, then add it.` : dirty ? "Unsaved changes" : "All changes saved");
   return html`<div class="foot">
-    <span class=${`note ${err ? "err" : ""}`}>${err || (dirty ? "Unsaved changes" : "All changes saved")}</span>
-    ${!isNew && html`<button class="btn danger" onClick=${onDelete}><${Icon} name="trash" />Delete</button>`}
-    <button class="btn primary" disabled=${!dirty || busy} onClick=${onSave}>${busy ? "Saving…" : isNew ? `Add ${what}` : "Save"}</button>
+    <span class=${`note ${err ? "err" : ""}`}>${note}</span>
+    ${!isNew && !sample && html`<button class="btn danger" onClick=${onDelete}><${Icon} name="trash" />Delete</button>`}
+    <button class="btn primary" disabled=${(!dirty && !sample) || busy} onClick=${onSave}>
+      ${busy ? "Saving…" : sample ? "Add to my library" : isNew ? `Add ${what}` : "Save"}
+    </button>
   </div>`;
 }
 
@@ -389,10 +415,13 @@ function useSaver({ path, id, draft, isNew, setDirty, ctx, which, back, what }) 
     setBusy(true);
     setErr("");
     try {
-      const saved = await api(isNew ? path : `${path}/${id}`, { method: isNew ? "POST" : "PUT", body: draft });
+      // A sample is saved as a brand-new record.
+      const asNew = isNew || !!draft.demo;
+      const body = draft.demo ? adopt(which, draft) : draft;
+      const saved = await api(asNew ? path : `${path}/${id}`, { method: asNew ? "POST" : "PUT", body });
       setDirty(false);
       await ctx.load([which]);
-      if (isNew) location.replace(`#/${back}/${saved.id}`);
+      if (asNew) location.replace(`#/${back}/${saved.id}`);
       ctx.setToast("Saved");
     } catch (e) {
       setErr(e.message);
@@ -570,7 +599,7 @@ function TrickEditor({ id, ctx }) {
         </div>`}
       </div>
     </div>
-    <${SaveBar} dirty=${dirty} busy=${busy} err=${err} isNew=${isNew} onSave=${save} onDelete=${remove} what="trick" />`;
+    <${SaveBar} dirty=${dirty} busy=${busy} err=${err} isNew=${isNew} sample=${!!draft.demo} onSave=${save} onDelete=${remove} what="trick" />`;
 }
 
 // ---------- set lists ----------
@@ -579,7 +608,7 @@ const itemMinutes = (item, byId) => item.duration_min ?? byId.get(item.trick_id)
 
 function SetlistList({ ctx }) {
   const { setlists, tricks } = ctx;
-  const byId = useMemo(() => new Map((tricks || []).map((t) => [t.id, t])), [tricks]);
+  const byId = useMemo(() => new Map([...DEMO_TRICKS, ...(tricks || [])].map((t) => [t.id, t])), [tricks]);
   return html`
     <div class="bar">
       <h1>Set lists</h1>
@@ -587,6 +616,7 @@ function SetlistList({ ctx }) {
       <button class="btn primary" onClick=${() => go("sets/new")}><${Icon} name="plus" />New set list</button>
     </div>
     <div class="scroll pad">
+      <${SampleNote} list=${setlists} what="set lists" newPath="sets/new" />
       ${!setlists
         ? null
         : setlists.length === 0
@@ -595,7 +625,7 @@ function SetlistList({ ctx }) {
               const total = s.items.reduce((n, i) => n + itemMinutes(i, byId), 0);
               return html`<button class="row" onClick=${() => go(`sets/${s.id}`)}>
                 <div class="ico"><${Icon} name="list" /></div>
-                <div class="txt"><div class="name">${s.name}</div>
+                <div class="txt"><div class="name">${s.name} <${SampleTag} item=${s} /></div>
                   <div class="sub">${[s.event, s.venue, fmtDate(s.date)].filter(Boolean).join(" · ") || `${s.items.length} items`}</div></div>
                 <div class="right">${s.items.length} items · ${fmtMin(total)}</div>
               </button>`;
@@ -618,7 +648,7 @@ function TrickPicker({ tricks, onPick, label = "Add trick" }) {
     <button class="btn" onClick=${() => setOpen(!open)}><${Icon} name="plus" />${label}</button>
     ${open && html`<div class="menu">
       <input class="input" placeholder="Search tricks…" value=${q} autofocus onInput=${(e) => setQ(e.target.value)} />
-      ${shown.length === 0 && html`<div class="none">No tricks match.</div>`}
+      ${shown.length === 0 && html`<div class="none">${(tricks || []).length ? "No tricks match." : "Add tricks to your library first."}</div>`}
       ${shown.map((t) => html`<button class="opt" onClick=${() => { onPick(t); setOpen(false); setQ(""); }}>
         ${t.name}<span class="sub">${[statusLabel(t.status), t.duration_min ? `${t.duration_min} min` : ""].filter(Boolean).join(" · ")}</span>
       </button>`)}
@@ -654,7 +684,7 @@ function SetlistEditor({ id, ctx }) {
   const { draft, set, dirty, setDirty, isNew, missing } = useDraft(id, ctx.setlists, BLANK_SET);
   const { busy, err, save, remove } = useSaver({ path: "setlists", id, draft, isNew, setDirty, ctx, which: "setlists", back: "sets", what: "set list" });
   useLeaveGuard(dirty);
-  const byId = useMemo(() => new Map((ctx.tricks || []).map((t) => [t.id, t])), [ctx.tricks]);
+  const byId = useMemo(() => new Map([...DEMO_TRICKS, ...(ctx.tricks || [])].map((t) => [t.id, t])), [ctx.tricks]);
   const items = draft?.items || [];
   const setItems = (next) => set({ items: next });
   const { move, props } = useReorder(items, setItems);
@@ -712,14 +742,14 @@ function SetlistEditor({ id, ctx }) {
             })}
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <${TrickPicker} tricks=${ctx.tricks} onPick=${(t) => setItems([...items, { id: uid(), trick_id: t.id }])} />
+            <${TrickPicker} tricks=${ctx.real.tricks} onPick=${(t) => setItems([...items, { id: uid(), trick_id: t.id }])} />
             <button class="btn" onClick=${() => setItems([...items, { id: uid(), title: "" }])}><${Icon} name="plus" />Add a bit</button>
           </div>
         </div>
         <${Field} label="NOTES"><${Area} rows="4" value=${draft.notes} placeholder="Stage size, tech, contact on site…" onInput=${(v) => set({ notes: v })} /><//>
       </div>
     </div>
-    <${SaveBar} dirty=${dirty} busy=${busy} err=${err} isNew=${isNew} onSave=${save} onDelete=${remove} what="set list" />`;
+    <${SaveBar} dirty=${dirty} busy=${busy} err=${err} isNew=${isNew} sample=${!!draft.demo} onSave=${save} onDelete=${remove} what="set list" />`;
 }
 
 function ShowMode({ title, when, rows, total, onClose }) {
@@ -752,6 +782,7 @@ function PlaylistList({ ctx }) {
       <button class="btn primary" onClick=${() => go("playlists/new")}><${Icon} name="plus" />New playlist</button>
     </div>
     <div class="scroll pad">
+      <${SampleNote} list=${playlists} what="playlists" newPath="playlists/new" />
       ${!playlists
         ? null
         : playlists.length === 0
@@ -761,7 +792,7 @@ function PlaylistList({ ctx }) {
               const linked = (ctx.setlists || []).find((s) => s.id === p.setlist_id);
               return html`<button class="row" onClick=${() => go(`playlists/${p.id}`)}>
                 <div class="ico"><${Icon} name="music" /></div>
-                <div class="txt"><div class="name">${p.name}</div><div class="sub">${linked ? `For ${linked.name}` : p.description || " "}</div></div>
+                <div class="txt"><div class="name">${p.name} <${SampleTag} item=${p} /></div><div class="sub">${linked ? `For ${linked.name}` : p.description || " "}</div></div>
                 <div class="right">${p.tracks.length} tracks${secs ? ` · ${fmtSec(secs)}` : ""}</div>
               </button>`;
             })}</div>`}
@@ -815,7 +846,7 @@ function PlaylistEditor({ id, ctx }) {
                   <input class="input" style="flex:2;min-width:160px" placeholder="Cue — when to play it" value=${t.cue || ""} onInput=${(e) => upd(i, { cue: e.target.value })} />
                   <select class="select" style="flex:1;min-width:140px" value=${t.trick_id || ""} onChange=${(e) => upd(i, { trick_id: e.target.value || undefined })}>
                     <option value="">No trick</option>
-                    ${(ctx.tricks || []).map((x) => html`<option value=${x.id}>${x.name}</option>`)}
+                    ${(ctx.real.tricks || []).map((x) => html`<option value=${x.id}>${x.name}</option>`)}
                   </select>
                 </div>
                 <div class="line">
@@ -839,7 +870,7 @@ function PlaylistEditor({ id, ctx }) {
         </div>
       </div>
     </div>
-    <${SaveBar} dirty=${dirty} busy=${busy} err=${err} isNew=${isNew} onSave=${save} onDelete=${remove} what="playlist" />`;
+    <${SaveBar} dirty=${dirty} busy=${busy} err=${err} isNew=${isNew} sample=${!!draft.demo} onSave=${save} onDelete=${remove} what="playlist" />`;
 }
 
 function AudioUpload({ onAdded, ctx }) {

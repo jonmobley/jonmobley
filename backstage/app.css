@@ -122,6 +122,17 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
 .card:hover { background: var(--card-hover); }
 .cover { aspect-ratio: 4 / 3; background: #1d1d1d; display: grid; place-items: center; overflow: hidden; }
 .cover img { width: 100%; height: 100%; object-fit: cover; }
+.cover .emoji { font-size: 56px; line-height: 1; }
+.pills { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sample-tag {
+  display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--gold);
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); border-radius: 999px; padding: 1px 8px; vertical-align: 2px;
+}
+.sample-note {
+  max-width: 880px; margin: 0 0 16px; padding: 12px 14px; border-radius: 12px; font-size: 14px; color: #d4d4d4;
+  background: color-mix(in srgb, var(--gold) 9%, var(--panel)); border: 1px solid color-mix(in srgb, var(--gold) 30%, transparent);
+}
+.sample-note a { color: var(--gold); }
 .cover .initial { font-size: 40px; font-weight: 600; color: #4a4a4a; }
 .card .meta { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
 .card .name { font-weight: 600; font-size: 15px; line-height: 1.3; }
