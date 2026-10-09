@@ -165,6 +165,9 @@ const PATHS = {
   note: "M4 4h16v12l-6 4H4zM14 20v-4h6M8 9h8M8 13h5",
   pin: "M12 17v5M8 3h8l-1 6 3 4H6l3-4z",
   folder: "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  home: "M3 11l9-8 9 8M5 9.5V20h5v-6h4v6h5V9.5",
+  sidebar: "M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM9 4v16",
   more: "M5 12h.01M12 12h.01M19 12h.01",
   download: "M12 3v12M7 10l5 5 5-5M5 21h14",
   upload: "M12 21V9M7 14l5-5 5 5M5 3h14",
@@ -178,7 +181,7 @@ const Icon = ({ name, size }) =>
 // ---------- app ----------
 
 function useHashRoute() {
-  const read = () => (location.hash.replace(/^#\/?/, "") || "tricks").split("/");
+  const read = () => (location.hash.replace(/^#\/?/, "") || "home").split("/");
   const [route, setRoute] = useState(read);
   useEffect(() => {
     const on = () => setRoute(read());
@@ -247,6 +250,7 @@ function Login({ session, onIn }) {
 
 // The six library sections: [route, desktop label, phone label, icon].
 const SECTIONS = [
+  ["home", "Home", "Home", "home"],
   ["tricks", "Tricks", "Tricks", "wand"],
   ["gear", "Equipment", "Gear", "box"],
   ["sets", "Set lists", "Sets", "list"],
@@ -255,9 +259,10 @@ const SECTIONS = [
   ["notes", "Notes", "Notes", "note"],
   ["files", "Files", "Files", "folder"],
   ["links", "Links", "Links", "link"],
+  ["stats", "Stats", "Stats", "chart"],
 ];
 // Phones show these in the bottom bar; the rest live under "More".
-const PHONE_MAIN = ["tricks", "gear", "sets", "tasks"];
+const PHONE_MAIN = ["home", "tricks", "sets", "tasks"];
 
 function Backstage({ onOut }) {
   const route = useHashRoute();
@@ -271,6 +276,9 @@ function Backstage({ onOut }) {
   const [links, setLinks] = useState(null);
   const [more, setMore] = useState(false);
   const [pane, setPane] = useState(() => (matchMedia("(max-width: 900px)").matches ? "lib" : "both"));
+  // Desktop: the chat panel slides in and out; remembered per device.
+  const [chatOpen, setChatOpen] = useState(() => store.get("chat-open") !== "0");
+  useEffect(() => { store.set("chat-open", chatOpen ? "1" : "0"); }, [chatOpen]);
   const [settings, setSettings] = useState(false);
   const [toast, setToast] = useState("");
   const [show, setShow] = useState(null);
@@ -311,7 +319,7 @@ function Backstage({ onOut }) {
     setTasks, load, setToast, setShow,
   };
   const [section, id] = route;
-  const tab = SECTIONS.some(([k]) => k === section) ? section : "tricks";
+  const tab = SECTIONS.some(([k]) => k === section) ? section : "home";
 
   let view;
   if (section === "sets" && id) view = html`<${SetlistEditor} key=${id} id=${id} ctx=${ctx} />`;
@@ -325,17 +333,23 @@ function Backstage({ onOut }) {
   else if (section === "notes") view = html`<${NoteList} ctx=${ctx} />`;
   else if (section === "files") view = html`<${FilesPage} ctx=${ctx} />`;
   else if (section === "links") view = html`<${LinksPage} ctx=${ctx} />`;
+  else if (section === "stats") view = html`<${StatsPage} ctx=${ctx} />`;
   else if (section === "tricks" && id) view = html`<${TrickEditor} key=${id} id=${id} ctx=${ctx} />`;
-  else view = html`<${TrickList} ctx=${ctx} />`;
+  else if (section === "tricks") view = html`<${TrickList} ctx=${ctx} />`;
+  else view = html`<${HomePage} ctx=${ctx} />`;
 
   const setTab = (t) => { setMore(false); go(t); if (pane === "chat") setPane("lib"); };
   const inMore = !PHONE_MAIN.includes(tab);
   const openTasks = (tasks || []).filter((t) => !t.done).length;
 
   return html`
-    <div class="shell">
+    <div class=${`shell ${chatOpen ? "" : "chat-closed"}`}>
       <header class="top">
-        <div class="brand"><div class="badge">JM</div><span class="word">Backstage</span></div>
+        <div class="brand">
+          <div class="badge">JM</div><span class="word">Backstage</span>
+          <button class="icon-btn sidebar-toggle" onClick=${() => setChatOpen(!chatOpen)} aria-pressed=${chatOpen}
+            aria-label=${chatOpen ? "Hide chat" : "Show chat"} title=${chatOpen ? "Hide chat" : "Show chat"}><${Icon} name="sidebar" /></button>
+        </div>
         <nav class="tabs">
           ${SECTIONS.map(([k, label]) => html`<button class=${`tab ${tab === k && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab(k)}>
             ${label}${k === "tasks" && openTasks > 0 ? html`<span class="count-badge">${openTasks}</span>` : null}
@@ -1698,8 +1712,9 @@ function FileUploadButton({ ctx, extra, label = "Upload", primary = true }) {
   </button>`;
 }
 
-function FileRow({ file, ctx, showSet = true }) {
-  const [open, setOpen] = useState(false);
+function FileRow({ file, ctx, showSet = true, startOpen = false, onClose }) {
+  const [open, setOpenState] = useState(startOpen);
+  const setOpen = (v) => { setOpenState(v); if (!v && onClose) onClose(); };
   const [name, setName] = useState(file.name);
   const [notes, setNotes] = useState(file.notes);
   useEffect(() => { setName(file.name); setNotes(file.notes); }, [file.name, file.notes]);
@@ -1719,6 +1734,7 @@ function FileRow({ file, ctx, showSet = true }) {
     if (!confirm(`Delete “${file.name}”? The file itself is deleted too.`)) return;
     await api(`files/${file.id}`, { method: "DELETE" }).catch((e) => ctx.setToast(e.message));
     await ctx.load(["files"]);
+    if (onClose) onClose();
   };
   const url = file.key ? mediaUrl(file.key) : null;
   return html`<div class=${`frow ${open ? "open" : ""}`}>
@@ -1757,7 +1773,26 @@ function FileRow({ file, ctx, showSet = true }) {
   </div>`;
 }
 
+/** Grid view: a big preview per file; tapping opens its details. */
+function FileCard({ file, onOpen, ctx }) {
+  const url = file.key ? mediaUrl(file.key) : null;
+  const exp = expiryInfo(file.expires);
+  return html`<button class="card fcard" onClick=${() => (file.demo ? ctx.setToast("That's a sample. Upload your own files and the samples go away.") : onOpen(file))}>
+    <div class="cover">
+      ${url && isPreviewable(file) ? html`<img src=${url} alt="" loading="lazy" class="contain" />` : html`<span class="fext big">${fileExt(file)}</span>`}
+    </div>
+    <div class="meta">
+      <div class="name">${file.name}</div>
+      <div class="sub">${[file.folder, fmtSize(file.size)].filter(Boolean).join(" · ")}</div>
+      <div class="pills">${exp ? html`<span class=${`exp ${exp.cls}`}>${exp.text}</span>` : null}<${SampleTag} item=${file} /></div>
+    </div>
+  </button>`;
+}
+
 function FilesPage({ ctx }) {
+  const [view, setView] = useState(() => store.get("file-view") || "list");
+  const [opened, setOpened] = useState(null);
+  useEffect(() => { store.set("file-view", view); }, [view]);
   const [q, setQ] = useState("");
   const [folder, setFolder] = useState(() => store.get("file-folder") || "");
   const [over, setOver] = useState(false);
@@ -1787,6 +1822,11 @@ function FilesPage({ ctx }) {
         ${expiring > 0 && html`<button class=${`chip warn ${folder === "__expiring" ? "on" : ""}`} onClick=${() => setFolder(folder === "__expiring" ? "" : "__expiring")}>Expiring · ${expiring}</button>`}
         ${folders.map((f) => html`<button class=${`chip ${folder === f ? "on" : ""}`} onClick=${() => setFolder(folder === f ? "" : f)}>${f}</button>`)}
       </div>
+      <div class="grow"></div>
+      <div class="seg" role="group" aria-label="View">
+        <button class=${view === "grid" ? "on" : ""} aria-label="Grid view" aria-pressed=${view === "grid"} onClick=${() => setView("grid")}><${Icon} name="grid" /></button>
+        <button class=${view === "list" ? "on" : ""} aria-label="List view" aria-pressed=${view === "list"} onClick=${() => setView("list")}><${Icon} name="rows" /></button>
+      </div>
     </div>
     <div class=${`scroll pad ${over ? "drop-over" : ""}`}
       onDragOver=${(e) => { if ([...e.dataTransfer.types].includes("Files")) { e.preventDefault(); setOver(true); } }}
@@ -1794,7 +1834,15 @@ function FilesPage({ ctx }) {
       onDrop=${(e) => { e.preventDefault(); setOver(false); uploadFiles(ctx, [...e.dataTransfer.files], extra); }}>
       <${SampleNote} list=${files} what="files" newPath="files" />
       ${files && shown.length === 0 && html`<div class="empty"><h2>${q || folder ? "No matches" : "No files yet"}</h2><p>${q || folder ? "Nothing fits that search." : "Upload your logo, insurance policies, contracts or anything else, or drag files here."}</p></div>`}
-      <div class="flist">${shown.map((f) => html`<${FileRow} key=${f.id} file=${f} ctx=${ctx} />`)}</div>
+      ${view === "grid"
+        ? html`<div class="grid">${shown.map((f) => html`<${FileCard} key=${f.id} file=${f} ctx=${ctx} onOpen=${setOpened} />`)}</div>`
+        : html`<div class="flist">${shown.map((f) => html`<${FileRow} key=${f.id} file=${f} ctx=${ctx} />`)}</div>`}
+      ${opened && (() => {
+        const live = (ctx.files || []).find((f) => f.id === opened.id);
+        return live && html`<div class="modal-wrap" onClick=${(e) => e.target === e.currentTarget && setOpened(null)}>
+          <div class="modal file-modal"><${FileRow} file=${live} ctx=${ctx} startOpen=${true} onClose=${() => setOpened(null)} /></div>
+        </div>`;
+      })()}
       <p class="hint drop-hint">Tip: drag files onto this page to upload them${folder && folder !== "__expiring" ? ` into ${folder}` : ""}.</p>
     </div>`;
 }
@@ -1837,6 +1885,12 @@ function LinkForm({ ctx, link, onDone }) {
     ${err && html`<div class="msg-err">${err}</div>`}
     <div class="task-acts">
       ${link && html`<button type="button" class="btn danger" onClick=${remove}><${Icon} name="trash" />Delete</button>`}
+      ${link && html`<button type="button" class="btn" onClick=${async () => {
+        await api(`links/${link.id}/thumbnail`, { method: "POST" }).catch((e2) => ctx.setToast(e2.message));
+        ctx.setToast("Getting a fresh preview…");
+        await ctx.load(["links"]);
+        onDone();
+      }}>New preview</button>`}
       <div style="flex:1"></div>
       <button type="button" class="btn" onClick=${onDone}>Cancel</button>
       <button class="btn primary" disabled=${!form.url.trim()}>${link ? "Save" : "Add link"}</button>
@@ -1849,6 +1903,13 @@ function LinksPage({ ctx }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);
   const { links } = ctx;
+  const capturing = (ctx.real.links || []).some((l) => l.image_kind === "" || l.image_kind === "working");
+  useEffect(() => {
+    if (!capturing) return;
+    let tries = 0;
+    const t = setInterval(() => { if (++tries > 15) clearInterval(t); else ctx.load(["links"]); }, 4000);
+    return () => clearInterval(t);
+  }, [capturing]);
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = (links || []).filter((l) => words.every((w) => `${l.title} ${l.url} ${l.folder} ${l.note}`.toLowerCase().includes(w)));
   const groups = [];
@@ -1876,15 +1937,301 @@ function LinksPage({ ctx }) {
           <div class="link-grid">
             ${items.map((l) => editing === l.id
               ? html`<div class="link-edit-wrap"><${LinkForm} ctx=${ctx} link=${l} onDone=${() => setEditing(null)} /></div>`
-              : html`<div class="link-tile">
-                  <a href=${l.url} target="_blank" rel="noopener noreferrer" class="lt-main">
-                    <span class="lt-av" style=${`background:hsl(${avatarHue(linkHost(l.url))} 45% 32%)`}>${(l.title[0] || "?").toUpperCase()}</span>
-                    <span class="lt-txt"><span class="name">${l.title} <${SampleTag} item=${l} /></span><span class="sub">${l.note || linkHost(l.url)}</span></span>
+              : html`<div class="link-card">
+                  <a href=${l.url} target="_blank" rel="noopener noreferrer" class="lc-shot" aria-label=${`Open ${l.title}`}>
+                    ${l.image_key && (l.image_kind === "screenshot" || l.image_kind === "preview")
+                      ? html`<img src=${mediaUrl(l.image_key)} alt="" loading="lazy" />`
+                      : l.image_key && l.image_kind === "icon"
+                        ? html`<span class="lc-icon"><img src=${mediaUrl(l.image_key)} alt="" loading="lazy" /></span>`
+                        : html`<span class="lc-letter" style=${`background:hsl(${avatarHue(linkHost(l.url))} 45% 26%)`}>
+                            ${(l.title[0] || "?").toUpperCase()}${!l.demo && (l.image_kind === "" || l.image_kind === "working") ? html`<small>Getting preview…</small>` : null}
+                          </span>`}
                   </a>
-                  ${!l.demo && html`<button class="icon-btn" aria-label=${`Edit ${l.title}`} onClick=${() => { setEditing(l.id); setAdding(false); }}><${Icon} name="edit" /></button>`}
+                  <div class="lc-meta">
+                    <a href=${l.url} target="_blank" rel="noopener noreferrer" class="lt-txt">
+                      <span class="name">${l.title} <${SampleTag} item=${l} /></span><span class="sub">${l.note || linkHost(l.url)}</span>
+                    </a>
+                    ${!l.demo && html`<button class="icon-btn" aria-label=${`Edit ${l.title}`} onClick=${() => { setEditing(l.id); setAdding(false); }}><${Icon} name="edit" /></button>`}
+                  </div>
                 </div>`)}
           </div>
         </div>`)}
+      </div>
+    </div>`;
+}
+
+// ---------- stats ----------
+
+const STAT_RANGES = [[7, "7 days"], [30, "30 days"], [90, "90 days"]];
+const nf = (n) => Number(n || 0).toLocaleString();
+const shortDay = (d) => {
+  const [y, m, day] = d.split("-").map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+};
+const BOT_KIND = { ai_live: "Looked you up for someone", ai_index: "AI search index", ai_train: "AI training", search: "Search engine" };
+
+/** A small round number at or above n, for the top gridline. */
+function niceMax(n) {
+  if (n <= 4) return 4;
+  const p = 10 ** Math.floor(Math.log10(n));
+  return [1, 2, 2.5, 5, 10].map((m) => m * p).find((x) => x >= n);
+}
+
+/**
+ * Bars per day (stacked when there is more than one series). One axis, thin bars with
+ * rounded tops, 2px surface gaps between stacked pieces, hairline grid, hover tooltip.
+ */
+function DayBars({ data, series, label }) {
+  const [hover, setHover] = useState(null);
+  const box = useRef();
+  const W = 720, H = 180, L = 34, R = 6, T = 8, B = 22;
+  const n = data.length;
+  const totals = data.map((d) => series.reduce((t, s) => t + (d[s.key] || 0), 0));
+  const max = niceMax(Math.max(...totals, 0));
+  const slot = (W - L - R) / n;
+  const bw = Math.max(2, Math.min(24, slot - 2));
+  const y = (v) => T + (H - T - B) * (1 - v / max);
+  const ticks = [0, max / 2, max];
+  const xLabels = n <= 7 ? data.map((_, i) => i) : [0, Math.floor((n - 1) / 2), n - 1];
+  const onMove = (e) => {
+    const r = box.current.getBoundingClientRect();
+    const i = Math.floor(((e.clientX - r.left) / r.width * W - L) / slot);
+    setHover(i >= 0 && i < n ? i : null);
+  };
+  const h = hover != null ? data[hover] : null;
+  return html`<div class="chart" ref=${box} onPointerMove=${onMove} onPointerDown=${onMove} onPointerLeave=${() => setHover(null)}>
+    <svg viewBox=${`0 0 ${W} ${H}`} role="img" aria-label=${label} preserveAspectRatio="none">
+      ${ticks.map((t) => html`<line x1=${L} x2=${W - R} y1=${y(t)} y2=${y(t)} class="grid" />`)}
+      ${data.map((d, i) => {
+        let base = 0;
+        const x = L + i * slot + (slot - bw) / 2;
+        const parts = series.filter((s) => d[s.key] > 0);
+        return html`<g class=${hover === i ? "hov" : ""}>${parts.map((s, j) => {
+          const v = d[s.key];
+          const top = y(base + v), bottom = y(base);
+          base += v;
+          const gap = j > 0 ? 2 : 0; // surface gap between stacked pieces
+          const hgt = Math.max(0, bottom - top - gap);
+          const r = j === parts.length - 1 ? Math.min(4, hgt, bw / 2) : 0;
+          return html`<path fill=${s.color} d=${`M${x},${bottom - gap} V${top + r} q0,${-r} ${r},${-r} H${x + bw - r} q${r},0 ${r},${r} V${bottom - gap} Z`} />`;
+        })}</g>`;
+      })}
+      ${hover != null && html`<line class="cross" x1=${L + hover * slot + slot / 2} x2=${L + hover * slot + slot / 2} y1=${T} y2=${H - B} />`}
+    </svg>
+    <div class="y-labels">${ticks.map((t) => html`<span style=${`top:${(y(t) / H) * 100}%`}>${nf(t)}</span>`)}</div>
+    <div class="x-labels">${xLabels.map((i) => html`<span style=${`left:${((L + i * slot + slot / 2) / W) * 100}%`}>${shortDay(data[i].day)}</span>`)}</div>
+    ${h && html`<div class="tip" style=${`left:${((L + hover * slot + slot / 2) / W) * 100}%`}>
+      <b>${shortDay(h.day)}</b>
+      ${series.map((s) => html`<div class="tip-row"><i style=${`background:${s.color}`}></i>${s.label}<span>${nf(h[s.key])}</span></div>`)}
+    </div>`}
+  </div>`;
+}
+
+function Legend({ series }) {
+  return html`<div class="legend">${series.map((s) => html`<span><i style=${`background:${s.color}`}></i>${s.label}</span>`)}</div>`;
+}
+
+function BarList({ rows, valueLabel = "visits", tag }) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return html`<div class="barlist">${rows.map((r) => html`<div class="bl-row">
+    <div class="bl-bar" style=${`width:${(r.value / max) * 100}%`}></div>
+    <span class="bl-name">${r.name}${tag && tag(r)}</span>
+    <span class="bl-val" title=${`${nf(r.value)} ${valueLabel}`}>${nf(r.value)}</span>
+  </div>`)}</div>`;
+}
+
+const PEOPLE = [{ key: "visitors", label: "Visitors", color: "var(--s-blue)" }];
+const AI_SERIES = [
+  { key: "fromAi", label: "Sent you visitors", color: "var(--s-blue)" },
+  { key: "aiLive", label: "Looked you up", color: "var(--s-orange)" },
+  { key: "aiCrawl", label: "Crawled your site", color: "var(--s-aqua)" },
+];
+
+function StatsPage({ ctx }) {
+  const [days, setDays] = useState(() => Number(store.get("stats-days")) || 30);
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [table, setTable] = useState(false);
+  useEffect(() => {
+    store.set("stats-days", String(days));
+    setErr("");
+    api(`stats?days=${days}`).then(setData).catch((e) => setErr(e.message));
+  }, [days]);
+  const series = (data?.series || []).map((d) => ({ ...d, aiCrawl: d.aiIndex + d.aiTrain }));
+  const t = data?.totals;
+  const empty = data && !data.trackingSince;
+  return html`
+    <div class="bar">
+      <h1>Stats</h1>
+      <div class="grow"></div>
+      <div class="seg wide" role="group" aria-label="Time range">
+        ${STAT_RANGES.map(([d, label]) => html`<button class=${days === d ? "on" : ""} aria-pressed=${days === d} onClick=${() => setDays(d)}>${label}</button>`)}
+      </div>
+    </div>
+    <div class="scroll pad">
+      <div class="stats">
+        ${err && html`<div class="empty"><h2>Couldn't load stats</h2><p>${err}</p></div>`}
+        ${!data && !err && html`<p class="muted-sm">Loading…</p>`}
+        ${data && html`
+          <p class="muted-sm">${empty ? "Counting starts now — visits will show up here as they happen." : `Counting since ${shortDay(data.trackingSince)} · ${shortDay(data.start)} – ${shortDay(data.end)}`}</p>
+          <div class="tiles">
+            <div class="tile"><span class="t-label">Visitors</span><b>${nf(t.visitors)}</b><span class="t-sub">${nf(t.views)} page views</span></div>
+            <div class="tile"><span class="t-label">Sent by AI assistants</span><b>${nf(t.fromAi)}</b><span class="t-sub">Visits from ChatGPT, Perplexity, Gemini…</span></div>
+            <div class="tile"><span class="t-label">AI looked you up</span><b>${nf(t.aiLive)}</b><span class="t-sub">An assistant read your site while answering someone</span></div>
+            <div class="tile"><span class="t-label">AI crawler visits</span><b>${nf(t.aiCrawl)}</b><span class="t-sub">Reading your site so AI knows about you</span></div>
+          </div>
+
+          <section class="card-sec">
+            <div class="sec-top"><h3>People per day</h3><button class="link-btn" onClick=${() => setTable(!table)}>${table ? "Show charts" : "Show as table"}</button></div>
+            ${table
+              ? html`<div class="stat-table"><table><thead><tr><th>Day</th><th>Visitors</th><th>Views</th><th>Sent by AI</th><th>Looked up</th><th>Crawled</th></tr></thead>
+                  <tbody>${[...series].reverse().map((d) => html`<tr><td>${shortDay(d.day)}</td><td>${nf(d.visitors)}</td><td>${nf(d.views)}</td><td>${nf(d.fromAi)}</td><td>${nf(d.aiLive)}</td><td>${nf(d.aiCrawl)}</td></tr>`)}</tbody></table></div>`
+              : html`<${DayBars} data=${series} series=${PEOPLE} label="Visitors per day" />`}
+          </section>
+
+          ${!table && html`<section class="card-sec">
+            <div class="sec-top"><h3>AI activity per day</h3></div>
+            <${Legend} series=${AI_SERIES} />
+            <${DayBars} data=${series} series=${AI_SERIES} label="AI activity per day: visitors sent by AI assistants, live look-ups, and crawler visits" />
+          </section>`}
+
+          <div class="two-col">
+            <section class="card-sec">
+              <h3>Where visitors came from</h3>
+              ${data.sources.length ? html`<${BarList} rows=${data.sources.map((s) => ({ name: s.name, value: s.views, ai: s.ai }))} valueLabel="page views" tag=${(r) => (r.ai ? html` <span class="ai-tag">AI</span>` : null)} />` : html`<p class="muted-sm">No visitors yet.</p>`}
+            </section>
+            <section class="card-sec">
+              <h3>Top pages</h3>
+              ${data.pages.length ? html`<${BarList} rows=${data.pages.map((p) => ({ name: p.path, value: p.views }))} valueLabel="page views" />` : html`<p class="muted-sm">No page views yet.</p>`}
+            </section>
+          </div>
+
+          <section class="card-sec">
+            <h3>AI assistants & search engines</h3>
+            ${data.bots.length
+              ? html`<div class="bots">${data.bots.map((b) => html`<div class="bot-row"><span class="bl-name">${b.name}</span><span class="bot-kind">${BOT_KIND[b.kind] || b.kind}</span><span class="bl-val">${nf(b.views)}</span></div>`)}</div>`
+              : html`<p class="muted-sm">None yet.</p>`}
+            <p class="hint">“Looked you up” means an assistant like ChatGPT opened your site while answering someone's question — the closest sign that you came up in a conversation. Nobody can see conversations that never reach your site.</p>
+          </section>`}
+      </div>
+    </div>`;
+}
+
+// ---------- home ----------
+
+const KIND_INFO = {
+  tricks: ["Trick", "wand", (x) => `tricks/${x.id}`],
+  equipment: ["Equipment", "box", (x) => `gear/${x.id}`],
+  setlists: ["Set list", "list", (x) => `sets/${x.id}`],
+  playlists: ["Playlist", "music", (x) => `playlists/${x.id}`],
+  notes: ["Note", "note", (x) => `notes/${x.id}`],
+  files: ["File", "folder", () => "files"],
+  links: ["Link", "link", () => "links"],
+};
+
+function daysUntil(date) {
+  const [y, m, d] = date.split("-").map(Number);
+  const [ty, tm, td] = today().split("-").map(Number);
+  return Math.round((new Date(y, m - 1, d) - new Date(ty, tm - 1, td)) / 86400000);
+}
+
+function HomePage({ ctx }) {
+  const [week, setWeek] = useState(null);
+  useEffect(() => { api("stats?days=7").then(setWeek).catch(() => setWeek(false)); }, []);
+  const r = ctx.real;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const t = today();
+
+  const upcoming = (r.setlists || []).filter((s) => s.date && s.date >= t).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
+  const byTrick = new Map([...(r.tricks || [])].map((x) => [x.id, x]));
+  const showMinutes = (s) => s.items.reduce((n, i) => n + (i.duration_min ?? byTrick.get(i.trick_id)?.duration_min ?? 0), 0);
+  const openTasks = (r.tasks || []).filter((x) => !x.done);
+  const soonTasks = openTasks.filter((x) => x.due && daysUntil(x.due) <= 7).sort((a, b) => a.due.localeCompare(b.due));
+  const otherTasks = openTasks.filter((x) => !x.due || daysUntil(x.due) > 7);
+  const taskList = [...soonTasks, ...otherTasks].slice(0, 6);
+
+  const recent = Object.entries(KIND_INFO)
+    .flatMap(([kind, info]) => (r[kind] || []).map((x) => ({ kind, info, x })))
+    .sort((a, b) => (b.x.created_at || 0) - (a.x.created_at || 0))
+    .slice(0, 8);
+  const itemName = ({ kind, x }) => (kind === "notes" ? noteTitle(x) : x.name || x.title || "Untitled");
+
+  const expiring = (r.files || []).filter((f) => f.expires && expiryInfo(f.expires)?.cls);
+  const repairs = (r.equipment || []).filter((g) => g.status === "repair");
+  const wishlist = [...(r.tricks || []), ...(r.equipment || [])].filter((x) => x.status === "wishlist");
+  const alerts = [
+    expiring.length && { icon: "folder", text: `${expiring.length} file${expiring.length > 1 ? "s" : ""} expiring or expired`, sub: expiring.map((f) => f.name).slice(0, 2).join(", "), to: "files", warn: true },
+    repairs.length && { icon: "box", text: repairs.length > 1 ? `${repairs.length} items need repair` : "1 item needs repair", sub: repairs.map((g) => g.name).slice(0, 2).join(", "), to: "gear", warn: true },
+    wishlist.length && { icon: "wand", text: `${wishlist.length} on your wishlist`, sub: money(wishlist.reduce((n, x) => n + (x.cost || 0), 0)) ? `About ${money(wishlist.reduce((n, x) => n + (x.cost || 0), 0))} total` : "", to: "tricks" },
+  ].filter(Boolean);
+  const loading = !r.tricks || !r.setlists || !r.tasks;
+
+  return html`
+    <div class="scroll pad">
+      <div class="home">
+        <header class="home-head">
+          <div>
+            <h1>${greeting}, Jon</h1>
+            <p class="muted-sm">${new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
+          </div>
+          <div class="quick">
+            <button class="btn" onClick=${() => go("tricks/new")}><${Icon} name="plus" />Trick</button>
+            <button class="btn" onClick=${() => go("sets/new")}><${Icon} name="plus" />Set list</button>
+            <button class="btn" onClick=${() => go("tasks")}><${Icon} name="plus" />Task</button>
+            <button class="btn" onClick=${() => go("files")}><${Icon} name="upload" />File</button>
+          </div>
+        </header>
+
+        ${alerts.length > 0 && html`<div class="alerts">${alerts.map((a) => html`<button class=${`alert ${a.warn ? "warn" : ""}`} onClick=${() => go(a.to)}>
+          <span class="sheet-ico"><${Icon} name=${a.icon} /></span>
+          <span class="alert-txt"><b>${a.text}</b>${a.sub && html`<span>${a.sub}</span>`}</span>
+        </button>`)}</div>`}
+
+        <div class="home-grid">
+          <section class="card-sec">
+            <div class="sec-top"><h3>Coming up</h3><button class="link-btn" onClick=${() => go("sets")}>All set lists</button></div>
+            ${loading ? html`<p class="muted-sm">Loading…</p>` : upcoming.length === 0
+              ? html`<p class="muted-sm">No upcoming shows with a date. Add a date to a set list to see it here.</p>`
+              : upcoming.map((s) => {
+                  const d = daysUntil(s.date);
+                  const todo = openTasks.filter((x) => x.setlist_id === s.id).length;
+                  return html`<button class="show-row" onClick=${() => go(`sets/${s.id}`)}>
+                    <span class="when"><b>${d === 0 ? "Today" : d === 1 ? "Tomorrow" : `${d} days`}</b><span>${shortDay(s.date)}</span></span>
+                    <span class="what"><b>${s.name}</b><span>${[s.venue || s.event, `${s.items.length} spot${s.items.length === 1 ? "" : "s"} · ${fmtMin(showMinutes(s))}`].filter(Boolean).join(" · ")}</span></span>
+                    ${todo > 0 && html`<span class="todo-pill">${todo} to do</span>`}
+                  </button>`;
+                })}
+          </section>
+
+          <section class="card-sec">
+            <div class="sec-top"><h3>Tasks</h3><button class="link-btn" onClick=${() => go("tasks")}>All tasks${openTasks.length ? ` (${openTasks.length})` : ""}</button></div>
+            ${loading ? html`<p class="muted-sm">Loading…</p>` : taskList.length === 0
+              ? html`<p class="muted-sm">Nothing to do. Nice.</p>`
+              : html`<div class="task-group">${taskList.map((x) => html`<${TaskRow} key=${x.id} task=${x} ctx=${ctx} />`)}</div>`}
+          </section>
+
+          <section class="card-sec">
+            <div class="sec-top"><h3>This week on your site</h3><button class="link-btn" onClick=${() => go("stats")}>Stats</button></div>
+            ${week === null ? html`<p class="muted-sm">Loading…</p>` : week === false ? html`<p class="muted-sm">Stats aren't available right now.</p>` : html`
+              <div class="mini-tiles">
+                <div><b>${nf(week.totals.visitors)}</b><span>visitors</span></div>
+                <div><b>${nf(week.totals.fromAi)}</b><span>sent by AI</span></div>
+                <div><b>${nf(week.totals.aiLive)}</b><span>AI looked you up</span></div>
+              </div>
+              ${week.trackingSince ? html`<${DayBars} data=${week.series} series=${PEOPLE} label="Visitors per day this week" />` : html`<p class="muted-sm">Counting started — numbers will appear as people visit.</p>`}`}
+          </section>
+
+          <section class="card-sec">
+            <h3>Recently added</h3>
+            ${loading ? html`<p class="muted-sm">Loading…</p>` : recent.length === 0
+              ? html`<p class="muted-sm">Nothing yet. Add a trick, a set list or a note and it shows up here.</p>`
+              : html`<div class="recent">${recent.map((e) => html`<button class="recent-row" onClick=${() => go(e.info[2](e.x))}>
+                  <span class="sheet-ico"><${Icon} name=${e.info[1]} /></span>
+                  <span class="what"><b>${itemName(e)}</b><span>${e.info[0]} · ${ago(e.x.created_at)}</span></span>
+                </button>`)}</div>`}
+          </section>
+        </div>
       </div>
     </div>`;
 }

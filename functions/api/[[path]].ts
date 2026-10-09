@@ -5,6 +5,8 @@ import * as data from "../../server/data";
 import * as chat from "../../server/chat";
 import * as shares from "../../server/shares";
 import { agentRest } from "../../server/agentBooking";
+import { refreshLinkImage } from "../../server/linkPreview";
+import * as stats from "../../server/stats";
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -132,6 +134,11 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
         if ("error" in result) return fail(result.error);
         return json({ ok: true }, 200, { "Set-Cookie": cookieFor(request, result.cookie) });
       }
+      case "stats": {
+        if (method !== "GET") break;
+        const days = Math.min(400, Math.max(1, Number(new URL(request.url).searchParams.get("days")) || 30));
+        return json(await stats.summary(env, days));
+      }
       case "shares": {
         // /api/shares/<kind>/<item id>: GET the link (or null), POST to turn it on, DELETE to turn it off.
         const kind = id as shares.Kind;
@@ -146,6 +153,21 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
         }
         break;
       }
+      case "links": {
+        // Thumbnails are captured in the background after a save, or on request.
+        if (id && sub === "thumbnail" && method === "POST") {
+          if (!(await data.getLink(env, id))) return fail("Not found.", 404);
+          await env.DB.prepare("UPDATE links SET image_kind = '' WHERE id = ?").bind(id).run();
+          waitUntil(refreshLinkImage(env, id));
+          return json({ ok: true });
+        }
+        const res = await collection(request, env, "links", id);
+        if (res.ok) {
+          const pending = (await data.listLinks(env)).filter((l) => l.image_kind === "").slice(0, 3);
+          for (const l of pending) waitUntil(refreshLinkImage(env, l.id));
+        }
+        return res;
+      }
       case "tricks":
       case "setlists":
       case "playlists":
@@ -153,7 +175,6 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
       case "notes":
       case "equipment":
       case "files":
-      case "links":
         return await collection(request, env, section, id);
       case "media": {
         if (method === "POST" && !id) {

@@ -1,26 +1,5 @@
 {
   "version": 1,
-  "include": [
-    "/api/*",
-    "/mcp",
-    "/functions/*",
-    "/server/*",
-    "/migrations/*",
-    "/scripts/*",
-    "/e2e/*",
-    "/node_modules/*",
-    "/wrangler.toml",
-    "/tsconfig.json",
-    "/package.json",
-    "/package-lock.json",
-    "/playwright.config.ts",
-    "/_routes.json",
-    "/.dev.vars",
-    "/.gitignore",
-    "/test-results/*",
-    "/playwright-report/*",
-    "/CLAUDE.md",
-    "/ABOUT-THIS-APP.md"
-  ],
-  "exclude": []
+  "include": ["/*"],
+  "exclude": ["/images/*", "/css/*", "/js/*", "/backstage/*", "/share/*", "/favicon.ico"]
 }
