@@ -22,6 +22,40 @@ async function fetchWithTimeout(url: string, ms: number, init?: RequestInit): Pr
   }
 }
 
+/** Reads at most `max` bytes of a response; null if it's bigger (stops downloading early). */
+async function readCapped(res: Response, max: number): Promise<Uint8Array | null> {
+  const declared = Number(res.headers.get("Content-Length") || 0);
+  if (declared > max) return null;
+  if (!res.body) return null;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.byteLength;
+  }
+  return out;
+}
+
+// Links that may be private (shared documents, secret codes in the address) are never sent to
+// the screenshot service; they get their page preview or icon instead.
+const PRIVATE_HOSTS = /(^|\.)(docs\.google\.com|drive\.google\.com|dropbox\.com|dropboxusercontent\.com|onedrive\.live\.com|1drv\.ms|icloud\.com|box\.com|sharepoint\.com|notion\.so|airtable\.com|calendly\.com|zoom\.us|nxsportal\.com|jonmobley\.com)$/i;
+function screenshotSafe(url: URL): boolean {
+  return !PRIVATE_HOSTS.test(url.hostname) && !url.search && !url.hash && !url.username && !url.password;
+}
+
 /** Downloads an image (http/https only, image types only, size-capped) into R2. */
 async function storeImage(env: Env, url: string): Promise<string | null> {
   if (!/^https?:\/\//i.test(url)) return null;
@@ -30,8 +64,8 @@ async function storeImage(env: Env, url: string): Promise<string | null> {
   const type = (res.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
   const ext = EXT[type];
   if (!ext) return null;
-  const buf = await res.arrayBuffer();
-  if (buf.byteLength < 200 || buf.byteLength > MAX_IMAGE) return null;
+  const buf = await readCapped(res, MAX_IMAGE);
+  if (!buf || buf.byteLength < 200) return null;
   const key = `media/${newId()}.${ext}`;
   await env.MEDIA.put(key, buf, { httpMetadata: { contentType: type }, customMetadata: { name: "link-thumbnail" } });
   return key;
@@ -60,7 +94,8 @@ async function screenshot(env: Env, url: string): Promise<string | null> {
 async function fromPage(env: Env, url: string): Promise<{ key: string; kind: "preview" | "icon" } | null> {
   const res = await fetchWithTimeout(url, 10000, { headers: { "User-Agent": UA, Accept: "text/html" } });
   if (res && res.ok && (res.headers.get("Content-Type") || "").includes("html")) {
-    const html = (await res.text()).slice(0, 400_000);
+    const bytes = await readCapped(res, 1_000_000);
+    const html = bytes ? new TextDecoder().decode(bytes) : "";
     const base = res.url || url;
     const meta = (name: string) =>
       html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${name}["'][^>]*content=["']([^"']+)["']`, "i"))?.[1] ||
@@ -89,7 +124,7 @@ export async function refreshLinkImage(env: Env, linkId: string): Promise<void> 
     if (!row) return;
     // Mark as in progress so parallel page loads don't start the same capture.
     await env.DB.prepare("UPDATE links SET image_kind = 'working' WHERE id = ?").bind(linkId).run();
-    let key = await screenshot(env, row.url);
+    let key = screenshotSafe(new URL(row.url)) ? await screenshot(env, row.url) : null;
     let kind = key ? "screenshot" : "";
     if (!key) {
       const alt = await fromPage(env, row.url);

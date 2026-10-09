@@ -166,6 +166,7 @@ const PATHS = {
   pin: "M12 17v5M8 3h8l-1 6 3 4H6l3-4z",
   folder: "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
   chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  home: "M3 11l9-8 9 8M5 9.5V20h5v-6h4v6h5V9.5",
   more: "M5 12h.01M12 12h.01M19 12h.01",
   download: "M12 3v12M7 10l5 5 5-5M5 21h14",
   upload: "M12 21V9M7 14l5-5 5 5M5 3h14",
@@ -179,7 +180,7 @@ const Icon = ({ name, size }) =>
 // ---------- app ----------
 
 function useHashRoute() {
-  const read = () => (location.hash.replace(/^#\/?/, "") || "tricks").split("/");
+  const read = () => (location.hash.replace(/^#\/?/, "") || "home").split("/");
   const [route, setRoute] = useState(read);
   useEffect(() => {
     const on = () => setRoute(read());
@@ -248,6 +249,7 @@ function Login({ session, onIn }) {
 
 // The six library sections: [route, desktop label, phone label, icon].
 const SECTIONS = [
+  ["home", "Home", "Home", "home"],
   ["tricks", "Tricks", "Tricks", "wand"],
   ["gear", "Equipment", "Gear", "box"],
   ["sets", "Set lists", "Sets", "list"],
@@ -259,7 +261,7 @@ const SECTIONS = [
   ["stats", "Stats", "Stats", "chart"],
 ];
 // Phones show these in the bottom bar; the rest live under "More".
-const PHONE_MAIN = ["tricks", "gear", "sets", "tasks"];
+const PHONE_MAIN = ["home", "tricks", "sets", "tasks"];
 
 function Backstage({ onOut }) {
   const route = useHashRoute();
@@ -313,7 +315,7 @@ function Backstage({ onOut }) {
     setTasks, load, setToast, setShow,
   };
   const [section, id] = route;
-  const tab = SECTIONS.some(([k]) => k === section) ? section : "tricks";
+  const tab = SECTIONS.some(([k]) => k === section) ? section : "home";
 
   let view;
   if (section === "sets" && id) view = html`<${SetlistEditor} key=${id} id=${id} ctx=${ctx} />`;
@@ -329,7 +331,8 @@ function Backstage({ onOut }) {
   else if (section === "links") view = html`<${LinksPage} ctx=${ctx} />`;
   else if (section === "stats") view = html`<${StatsPage} ctx=${ctx} />`;
   else if (section === "tricks" && id) view = html`<${TrickEditor} key=${id} id=${id} ctx=${ctx} />`;
-  else view = html`<${TrickList} ctx=${ctx} />`;
+  else if (section === "tricks") view = html`<${TrickList} ctx=${ctx} />`;
+  else view = html`<${HomePage} ctx=${ctx} />`;
 
   const setTab = (t) => { setMore(false); go(t); if (pane === "chat") setPane("lib"); };
   const inMore = !PHONE_MAIN.includes(tab);
@@ -2102,6 +2105,125 @@ function StatsPage({ ctx }) {
               : html`<p class="muted-sm">None yet.</p>`}
             <p class="hint">“Looked you up” means an assistant like ChatGPT opened your site while answering someone's question — the closest sign that you came up in a conversation. Nobody can see conversations that never reach your site.</p>
           </section>`}
+      </div>
+    </div>`;
+}
+
+// ---------- home ----------
+
+const KIND_INFO = {
+  tricks: ["Trick", "wand", (x) => `tricks/${x.id}`],
+  equipment: ["Equipment", "box", (x) => `gear/${x.id}`],
+  setlists: ["Set list", "list", (x) => `sets/${x.id}`],
+  playlists: ["Playlist", "music", (x) => `playlists/${x.id}`],
+  notes: ["Note", "note", (x) => `notes/${x.id}`],
+  files: ["File", "folder", () => "files"],
+  links: ["Link", "link", () => "links"],
+};
+
+function daysUntil(date) {
+  const [y, m, d] = date.split("-").map(Number);
+  const [ty, tm, td] = today().split("-").map(Number);
+  return Math.round((new Date(y, m - 1, d) - new Date(ty, tm - 1, td)) / 86400000);
+}
+
+function HomePage({ ctx }) {
+  const [week, setWeek] = useState(null);
+  useEffect(() => { api("stats?days=7").then(setWeek).catch(() => setWeek(false)); }, []);
+  const r = ctx.real;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const t = today();
+
+  const upcoming = (r.setlists || []).filter((s) => s.date && s.date >= t).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
+  const byTrick = new Map([...(r.tricks || [])].map((x) => [x.id, x]));
+  const showMinutes = (s) => s.items.reduce((n, i) => n + (i.duration_min ?? byTrick.get(i.trick_id)?.duration_min ?? 0), 0);
+  const openTasks = (r.tasks || []).filter((x) => !x.done);
+  const soonTasks = openTasks.filter((x) => x.due && daysUntil(x.due) <= 7).sort((a, b) => a.due.localeCompare(b.due));
+  const otherTasks = openTasks.filter((x) => !x.due || daysUntil(x.due) > 7);
+  const taskList = [...soonTasks, ...otherTasks].slice(0, 6);
+
+  const recent = Object.entries(KIND_INFO)
+    .flatMap(([kind, info]) => (r[kind] || []).map((x) => ({ kind, info, x })))
+    .sort((a, b) => (b.x.created_at || 0) - (a.x.created_at || 0))
+    .slice(0, 8);
+  const itemName = ({ kind, x }) => (kind === "notes" ? noteTitle(x) : x.name || x.title || "Untitled");
+
+  const expiring = (r.files || []).filter((f) => f.expires && expiryInfo(f.expires)?.cls);
+  const repairs = (r.equipment || []).filter((g) => g.status === "repair");
+  const wishlist = [...(r.tricks || []), ...(r.equipment || [])].filter((x) => x.status === "wishlist");
+  const alerts = [
+    expiring.length && { icon: "folder", text: `${expiring.length} file${expiring.length > 1 ? "s" : ""} expiring or expired`, sub: expiring.map((f) => f.name).slice(0, 2).join(", "), to: "files", warn: true },
+    repairs.length && { icon: "box", text: repairs.length > 1 ? `${repairs.length} items need repair` : "1 item needs repair", sub: repairs.map((g) => g.name).slice(0, 2).join(", "), to: "gear", warn: true },
+    wishlist.length && { icon: "wand", text: `${wishlist.length} on your wishlist`, sub: money(wishlist.reduce((n, x) => n + (x.cost || 0), 0)) ? `About ${money(wishlist.reduce((n, x) => n + (x.cost || 0), 0))} total` : "", to: "tricks" },
+  ].filter(Boolean);
+  const loading = !r.tricks || !r.setlists || !r.tasks;
+
+  return html`
+    <div class="scroll pad">
+      <div class="home">
+        <header class="home-head">
+          <div>
+            <h1>${greeting}, Jon</h1>
+            <p class="muted-sm">${new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
+          </div>
+          <div class="quick">
+            <button class="btn" onClick=${() => go("tricks/new")}><${Icon} name="plus" />Trick</button>
+            <button class="btn" onClick=${() => go("sets/new")}><${Icon} name="plus" />Set list</button>
+            <button class="btn" onClick=${() => go("tasks")}><${Icon} name="plus" />Task</button>
+            <button class="btn" onClick=${() => go("files")}><${Icon} name="upload" />File</button>
+          </div>
+        </header>
+
+        ${alerts.length > 0 && html`<div class="alerts">${alerts.map((a) => html`<button class=${`alert ${a.warn ? "warn" : ""}`} onClick=${() => go(a.to)}>
+          <span class="sheet-ico"><${Icon} name=${a.icon} /></span>
+          <span class="alert-txt"><b>${a.text}</b>${a.sub && html`<span>${a.sub}</span>`}</span>
+        </button>`)}</div>`}
+
+        <div class="home-grid">
+          <section class="card-sec">
+            <div class="sec-top"><h3>Coming up</h3><button class="link-btn" onClick=${() => go("sets")}>All set lists</button></div>
+            ${loading ? html`<p class="muted-sm">Loading…</p>` : upcoming.length === 0
+              ? html`<p class="muted-sm">No upcoming shows with a date. Add a date to a set list to see it here.</p>`
+              : upcoming.map((s) => {
+                  const d = daysUntil(s.date);
+                  const todo = openTasks.filter((x) => x.setlist_id === s.id).length;
+                  return html`<button class="show-row" onClick=${() => go(`sets/${s.id}`)}>
+                    <span class="when"><b>${d === 0 ? "Today" : d === 1 ? "Tomorrow" : `${d} days`}</b><span>${shortDay(s.date)}</span></span>
+                    <span class="what"><b>${s.name}</b><span>${[s.venue || s.event, `${s.items.length} spot${s.items.length === 1 ? "" : "s"} · ${fmtMin(showMinutes(s))}`].filter(Boolean).join(" · ")}</span></span>
+                    ${todo > 0 && html`<span class="todo-pill">${todo} to do</span>`}
+                  </button>`;
+                })}
+          </section>
+
+          <section class="card-sec">
+            <div class="sec-top"><h3>Tasks</h3><button class="link-btn" onClick=${() => go("tasks")}>All tasks${openTasks.length ? ` (${openTasks.length})` : ""}</button></div>
+            ${loading ? html`<p class="muted-sm">Loading…</p>` : taskList.length === 0
+              ? html`<p class="muted-sm">Nothing to do. Nice.</p>`
+              : html`<div class="task-group">${taskList.map((x) => html`<${TaskRow} key=${x.id} task=${x} ctx=${ctx} />`)}</div>`}
+          </section>
+
+          <section class="card-sec">
+            <div class="sec-top"><h3>This week on your site</h3><button class="link-btn" onClick=${() => go("stats")}>Stats</button></div>
+            ${week === null ? html`<p class="muted-sm">Loading…</p>` : week === false ? html`<p class="muted-sm">Stats aren't available right now.</p>` : html`
+              <div class="mini-tiles">
+                <div><b>${nf(week.totals.visitors)}</b><span>visitors</span></div>
+                <div><b>${nf(week.totals.fromAi)}</b><span>sent by AI</span></div>
+                <div><b>${nf(week.totals.aiLive)}</b><span>AI looked you up</span></div>
+              </div>
+              ${week.trackingSince ? html`<${DayBars} data=${week.series} series=${PEOPLE} label="Visitors per day this week" />` : html`<p class="muted-sm">Counting started — numbers will appear as people visit.</p>`}`}
+          </section>
+
+          <section class="card-sec">
+            <h3>Recently added</h3>
+            ${loading ? html`<p class="muted-sm">Loading…</p>` : recent.length === 0
+              ? html`<p class="muted-sm">Nothing yet. Add a trick, a set list or a note and it shows up here.</p>`
+              : html`<div class="recent">${recent.map((e) => html`<button class="recent-row" onClick=${() => go(e.info[2](e.x))}>
+                  <span class="sheet-ico"><${Icon} name=${e.info[1]} /></span>
+                  <span class="what"><b>${itemName(e)}</b><span>${e.info[0]} · ${ago(e.x.created_at)}</span></span>
+                </button>`)}</div>`}
+          </section>
+        </div>
       </div>
     </div>`;
 }
