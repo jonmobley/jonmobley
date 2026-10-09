@@ -204,9 +204,14 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   display: grid; grid-template-columns: 28px 28px 1fr auto; gap: 8px; align-items: start; padding: 10px 10px 10px 6px;
   background: var(--card); border: 1px solid #333; border-radius: 12px;
 }
-.item.dragging { opacity: .4; }
-.item.over { border-color: var(--accent); }
-.item .grip { color: #666; cursor: grab; display: grid; place-items: center; height: 34px; }
+.item.dragging { background: var(--card-hover); border-color: #555; box-shadow: 0 10px 28px rgba(0,0,0,.45); position: relative; z-index: 2; }
+.item .grip { color: #777; cursor: grab; display: grid; place-items: center; height: 38px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.item.dragging .grip { cursor: grabbing; color: var(--ink); }
+/* While dragging, every row folds to its first line so the whole list is in reach. */
+.order.reordering .item .body > :not(:first-child), .order.reordering .item .line > :not(:first-child), .order.reordering .item .acts { display: none; }
+.order.reordering .item { align-items: center; padding-top: 4px; padding-bottom: 4px; }
+.order.reordering .item .line .input { pointer-events: none; }
+.order.reordering { user-select: none; -webkit-user-select: none; }
 .item .num { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; height: 34px; display: grid; place-items: center; }
 .item .body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .item .line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -345,8 +350,8 @@ audio { width: 100%; height: 36px; }
   .editor { gap: 18px; }
   .editor .title-input { font-size: 23px; }
   /* Running order / tracks: no drag handle on touch, arrows stacked so the boxes get the width. */
-  .item { grid-template-columns: 20px 1fr 34px; gap: 6px; padding: 10px 6px 10px 8px; }
-  .item .grip { display: none; }
+  .item { grid-template-columns: 32px 16px 1fr 34px; gap: 4px; padding: 10px 6px 10px 2px; }
+  .item .grip { height: 44px; }
   .item .num { height: 38px; }
   .item .acts { flex-direction: column; }
   .item .line .input { min-width: 0 !important; }
@@ -362,12 +367,16 @@ audio { width: 100%; height: 36px; }
   .tabs { margin-left: 0; }
   .tab { padding: 5px 9px; }
   .back-word { display: none; }
+  .item { grid-template-columns: 30px 1fr 34px; }
+  .item .num { display: none; }
 }
 @media (max-width: 420px) {
   .tabs .tab .long { display: none; }
   .hide-sm { display: none; }
   .foot .btn.danger { padding: 0 12px; }
-  .item .line .input:not(.mins):not(.t-artist), .item .line .select { flex: 1 1 100% !important; }
+  .item .line .input:not(.mins):not(.t-artist):not(.s-title), .item .line .select { flex: 1 1 100% !important; }
+  .item .line .s-title { flex: 1 1 0 !important; }
+  .item .line .mins { width: 72px !important; }
 }
 
 @media print {

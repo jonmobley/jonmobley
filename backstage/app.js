@@ -738,26 +738,88 @@ function TrickPicker({ tricks, onPick, label = "Add trick" }) {
   </div>`;
 }
 
-/** Drag-to-reorder (mouse) plus up/down buttons (touch and keyboard). */
+/**
+ * Reordering: press the handle and slide (finger or mouse). The list reshuffles live as you
+ * pass each row, and scrolls when you reach the top or bottom edge. Up/down buttons still work.
+ */
 function useReorder(list, onChange) {
   const [dragging, setDragging] = useState(null);
-  const [over, setOver] = useState(null);
+  const latest = useRef();
+  latest.current = { list, onChange };
   const move = (from, to) => {
-    if (to < 0 || to >= list.length || from === to) return;
-    const next = [...list];
+    const { list: cur, onChange: change } = latest.current;
+    if (to < 0 || to >= cur.length || from === to) return;
+    const next = [...cur];
     const [x] = next.splice(from, 1);
     next.splice(to, 0, x);
-    onChange(next);
+    change(next);
   };
-  const props = (i) => ({
-    draggable: true,
-    class: `item ${dragging === i ? "dragging" : ""} ${over === i && dragging !== i ? "over" : ""}`,
-    onDragStart: (e) => { setDragging(i); e.dataTransfer.effectAllowed = "move"; },
-    onDragOver: (e) => { e.preventDefault(); setOver(i); },
-    onDragEnd: () => { setDragging(null); setOver(null); },
-    onDrop: (e) => { e.preventDefault(); if (dragging !== null) move(dragging, i); setDragging(null); setOver(null); },
-  });
-  return { move, props };
+  const startDrag = (i) => (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    const row = e.currentTarget.closest(".item");
+    const container = row?.parentElement;
+    const scroller = row?.closest(".scroll");
+    if (!row || !container) return;
+    let index = i;
+    let lastY = e.clientY;
+    // Rows fold down to one line while dragging; keep the grabbed row under the finger.
+    const before = row.getBoundingClientRect().top;
+    setDragging(index);
+    requestAnimationFrame(() => {
+      if (scroller) scroller.scrollTop += row.getBoundingClientRect().top - before;
+    });
+    const reorderAt = (y) => {
+      const rows = [...container.children];
+      let to = index;
+      rows.forEach((node, j) => {
+        const r = node.getBoundingClientRect();
+        const mid = r.top + r.height / 2;
+        if (j < index && y < mid) to = Math.min(to, j);
+        if (j > index && y > mid) to = Math.max(to, j);
+      });
+      if (to !== index) {
+        move(index, to);
+        index = to;
+        setDragging(to);
+      }
+    };
+    // Keep scrolling while the finger rests near the top or bottom edge.
+    let frame = 0;
+    const edgeScroll = () => {
+      frame = 0;
+      if (!scroller) return;
+      const r = scroller.getBoundingClientRect();
+      const edge = 70;
+      const depth = lastY < r.top + edge ? lastY - (r.top + edge) : lastY > r.bottom - edge ? lastY - (r.bottom - edge) : 0;
+      const speed = Math.max(-9, Math.min(9, depth / 8));
+      if (speed) {
+        scroller.scrollTop += speed;
+        reorderAt(lastY);
+        frame = requestAnimationFrame(edgeScroll);
+      }
+    };
+    const onMove = (ev) => {
+      if (ev.pointerId !== e.pointerId) return;
+      lastY = ev.clientY;
+      reorderAt(lastY);
+      if (!frame) frame = requestAnimationFrame(edgeScroll);
+    };
+    const onEnd = () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onEnd);
+      document.removeEventListener("pointercancel", onEnd);
+      setDragging(null);
+    };
+    // Listen on the page: the row moves in the list while it's being dragged.
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onEnd);
+    document.addEventListener("pointercancel", onEnd);
+  };
+  const props = (i) => ({ class: `item ${dragging === i ? "dragging" : ""}` });
+  const grip = (i) => html`<div class="grip" title="Drag to reorder" aria-hidden="true" onPointerDown=${startDrag(i)}><${Icon} name="grip" /></div>`;
+  return { move, props, grip, dragging: dragging !== null };
 }
 
 const BLANK_SET = { name: "", event: "", venue: "", date: "", notes: "", items: [] };
@@ -769,7 +831,7 @@ function SetlistEditor({ id, ctx }) {
   const byId = useMemo(() => new Map([...DEMO_TRICKS, ...(ctx.tricks || [])].map((t) => [t.id, t])), [ctx.tricks]);
   const items = draft?.items || [];
   const setItems = (next) => set({ items: next });
-  const { move, props } = useReorder(items, setItems);
+  const { move, props, grip, dragging: reordering } = useReorder(items, setItems);
   if (missing) return html`<${BackBar} to="sets" label="Set lists" /><div class="empty"><h2>Set list not found</h2></div>`;
   if (!draft) return html`<${BackBar} to="sets" label="Set lists" />`;
   const total = items.reduce((n, i) => n + itemMinutes(i, byId), 0);
@@ -799,17 +861,17 @@ function SetlistEditor({ id, ctx }) {
             <h3 style="margin:0;flex:1">Running order</h3>
             <div class="total">Total <b>${fmtMin(total)}</b></div>
           </div>
-          <div class="order">
+          <div class=${`order ${reordering ? "reordering" : ""}`}>
             ${items.map((item, i) => {
               const t = item.trick_id ? byId.get(item.trick_id) : null;
               return html`<div key=${item.id} ...${props(i)}>
-                <div class="grip" title="Drag to reorder"><${Icon} name="grip" /></div>
+                ${grip(i)}
                 <div class="num">${i + 1}</div>
                 <div class="body">
                   <div class="line">
                     ${item.trick_id
                       ? html`<span class="tname" onClick=${() => go(`tricks/${item.trick_id}`)}>${t ? t.name : "(deleted trick)"}</span>`
-                      : html`<input class="input" style="flex:1;min-width:140px" placeholder="Bit, intro, Q&A…" value=${item.title || ""} onInput=${(e) => upd(i, { title: e.target.value })} />`}
+                      : html`<input class="input s-title" style="flex:1;min-width:140px" placeholder="Bit, intro, Q&A…" value=${item.title || ""} onInput=${(e) => upd(i, { title: e.target.value })} />`}
                     <input class="input mins" type="number" min="0" step="0.5" inputmode="decimal" aria-label="Minutes"
                       placeholder=${t?.duration_min ? `${t.duration_min} min` : "min"} value=${item.duration_min ?? ""}
                       onInput=${(e) => upd(i, { duration_min: e.target.value === "" ? null : Number(e.target.value) })} />
@@ -890,7 +952,7 @@ function PlaylistEditor({ id, ctx }) {
   useLeaveGuard(dirty);
   const tracks = draft?.tracks || [];
   const setTracks = (next) => set({ tracks: next });
-  const { move, props } = useReorder(tracks, setTracks);
+  const { move, props, grip, dragging: reordering } = useReorder(tracks, setTracks);
   if (missing) return html`<${BackBar} to="playlists" label="Playlists" /><div class="empty"><h2>Playlist not found</h2></div>`;
   if (!draft) return html`<${BackBar} to="playlists" label="Playlists" />`;
   const upd = (i, patch) => setTracks(tracks.map((x, j) => (j === i ? { ...x, ...patch } : x)));
@@ -917,9 +979,9 @@ function PlaylistEditor({ id, ctx }) {
             <h3 style="margin:0;flex:1">Tracks</h3>
             ${secs > 0 && html`<div class="total">Total <b>${fmtSec(secs)}</b></div>`}
           </div>
-          <div class="order">
+          <div class=${`order ${reordering ? "reordering" : ""}`}>
             ${tracks.map((t, i) => html`<div key=${t.id} ...${props(i)}>
-              <div class="grip" title="Drag to reorder"><${Icon} name="grip" /></div>
+              ${grip(i)}
               <div class="num">${i + 1}</div>
               <div class="body">
                 <div class="line">
