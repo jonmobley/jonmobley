@@ -6,4 +6,6 @@ export interface Env {
   ANTHROPIC_API_KEY?: string;
   /** Local testing only: point the chat at a fake Claude server. */
   ANTHROPIC_BASE_URL?: string;
+  /** Where Nexus's agent booking API lives. Defaults to https://nxsportal.com/api/agent/booking. */
+  NEXUS_AGENT_URL?: string;
 }

@@ -1,0 +1,22 @@
+# Jon Mobley
+
+> Jon Mobley is a magician, comedian and emcee based in Indianapolis (Penn & Teller: Fool Us, The CW, Chicago Magic Lounge). He performs strolling magic, comedy stage shows and emcees corporate events, weddings, galas and fundraisers.
+
+AI agents can check availability, get an exact quote and book Jon directly — no form needed.
+
+## Book Jon (for AI agents)
+
+- MCP server (Streamable HTTP): https://jonmobley.com/mcp — tools: get_offer, check_availability, get_quote, book, booking_status
+- JSON API: https://jonmobley.com/api/agent
+  - GET /api/agent — shows, prices, add-ons, event types, deposit and hold policy
+  - GET /api/agent/availability?from=YYYY-MM-DD&to=YYYY-MM-DD — up to 92 days
+  - POST /api/agent/quote — {packageId, addonIds?, date, startTime "HH:MM", guestCount?, eventType?, venueAddress?} → quoteId (valid 24h)
+  - POST /api/agent/book — {quoteId, idempotencyKey, client:{name,email,phone,company?}, event:{title?,type?,venueName?,venueAddress,guestCount?,notes?}, agent:{name}}
+  - GET /api/agent/bookings/{ref}?email= — held | confirmed | expired | cancelled
+- Rules: only book after your user approves the date, time, show and price. A booking is held for a limited time and confirmed automatically when the client signs the agreement and pays the deposit at the portal link returned by book.
+
+## For people
+
+- [Booking form](https://jonmobley.com/booking/): request a date the classic way
+- [How AI booking works](https://jonmobley.com/agents/)
+- Contact: booking@jonmobley.com · 317-426-1270

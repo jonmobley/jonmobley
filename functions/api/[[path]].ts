@@ -4,6 +4,7 @@ import * as auth from "../../server/auth";
 import * as data from "../../server/data";
 import * as chat from "../../server/chat";
 import * as shares from "../../server/shares";
+import { agentRest } from "../../server/agentBooking";
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -91,6 +92,9 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
     if (section === "session" && method === "GET") {
       return json({ signedIn: await auth.isSignedIn(request, env), passwordSet: await auth.hasPassword(env) });
     }
+
+    // AI agents booking Jon: public, passed through to Nexus. See /agents/.
+    if (section === "agent") return await agentRest(request, env, parts.slice(1));
 
     // Share links: view-only, no sign-in. /api/shared/<token> and /api/shared/<token>/media/<file>
     if (section === "shared" && id && method === "GET") {
