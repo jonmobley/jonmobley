@@ -24,6 +24,8 @@ You manage his library with the tools:
 - Playlists: music and sound cues, optionally tied to a set list. Tracks have title, artist, url, cue (when to play), duration_sec, and optional trick_id.
 
 - Equipment: gear that isn't a trick (mics, speakers, cases, tables, lights, cables). Fields: name, category, status (working, repair = needs repair, wishlist, retired), quantity, location, make_model, serial, cost (price USD), purchase_url, purchased_on, tags, links, images, notes. A set list's "equipment" is the list of equipment ids to bring to that show.
+- Files: uploaded documents and images (logo, insurance policies from Thimble, contracts, promo photos). Each has name, folder (e.g. Insurance, Logos & branding, Contracts), notes, optional setlist_id (the show it's for) and expires (YYYY-MM-DD, e.g. when an insurance policy ends). Photos Jon sends in chat can be saved as files with their media key. You can't read a file's contents, only its details.
+- Links: quick-access web links (title, url, folder, note, pinned) — e.g. Thimble for event insurance.
 - Tasks: Jon's to-dos (title, done, due date, notes, optional setlist_id for a show's prep). Use them for reminders like "charge the mic before Saturday" — work out the date from today.
 - Notes: free-form notes (title, body, pinned) for ideas, patter, scripts, contacts, anything.
 
@@ -203,6 +205,46 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
   },
   {
+    name: "search_files",
+    description: "List files in the Files area (name, folder, show, expiry). No query lists everything.",
+    input_schema: { type: "object", properties: { query: { type: "string" }, folder: { type: "string" } } },
+  },
+  {
+    name: "save_file",
+    description: "Save a photo from this chat into Files (give key = its media key, plus name/folder), or update a file's details (give id). Only the fields you include change.",
+    input_schema: {
+      type: "object",
+      properties: {
+        id: { type: "string" }, key: strProp("media/… key of a photo from this chat, when saving a new file"),
+        name: { type: "string" }, folder: { type: "string" }, notes: { type: "string" },
+        setlist_id: { type: ["string", "null"] }, expires: strProp("YYYY-MM-DD or empty"),
+      },
+    },
+  },
+  {
+    name: "delete_file",
+    description: "Permanently delete a file and its stored copy. Only after Jon confirms.",
+    input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
+    name: "list_links",
+    description: "List the quick-access links.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "save_link",
+    description: "Add a link (omit id) or change one (give id). Only the fields you include change.",
+    input_schema: {
+      type: "object",
+      properties: { id: { type: "string" }, title: { type: "string" }, url: { type: "string" }, folder: { type: "string" }, note: { type: "string" }, pinned: { type: "boolean" } },
+    },
+  },
+  {
+    name: "delete_link",
+    description: "Delete a link. Only after Jon confirms.",
+    input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
     name: "list_tasks",
     description: "List tasks. By default only open ones; set include_done to see finished ones too.",
     input_schema: { type: "object", properties: { include_done: { type: "boolean" }, setlist_id: strProp("Only tasks for this set list") } },
@@ -367,6 +409,39 @@ async function runTool(env: Env, origin: string, name: string, input: Json): Pro
       const g = await data.getEquipment(env, String(input.id));
       if (!g || !(await data.deleteEquipment(env, g.id))) return { result: "No equipment with that id." };
       return { result: "Deleted.", step: `Deleted equipment “${g.name}”`, changed: "equipment" };
+    }
+    case "search_files": {
+      const words = (typeof input.query === "string" ? input.query : "").toLowerCase().split(/\s+/).filter(Boolean);
+      const folder = typeof input.folder === "string" ? input.folder.toLowerCase() : "";
+      const hits = (await data.listFiles(env)).filter((f) => (!folder || f.folder.toLowerCase() === folder)
+        && words.every((w) => `${f.name} ${f.folder} ${f.notes}`.toLowerCase().includes(w)));
+      return { result: JSON.stringify(hits.map(({ key, created_at, ...f }) => ({ ...f, updated_at: new Date(f.updated_at).toISOString().slice(0, 10) }))) };
+    }
+    case "save_file": {
+      const id = idOf(input);
+      const fields: Json = { ...input };
+      delete fields.id;
+      const f = await data.saveFile(env, fields, id);
+      return { result: JSON.stringify({ id: f.id, name: f.name, folder: f.folder }), step: `${id ? "Updated" : "Saved"} file “${f.name}”`, changed: "files" };
+    }
+    case "delete_file": {
+      const f = await data.getFile(env, String(input.id));
+      if (!f || !(await data.deleteFile(env, f.id))) return { result: "No file with that id." };
+      return { result: "Deleted.", step: `Deleted file “${f.name}”`, changed: "files" };
+    }
+    case "list_links":
+      return { result: JSON.stringify(await data.listLinks(env)) };
+    case "save_link": {
+      const id = idOf(input);
+      const fields: Json = { ...input };
+      delete fields.id;
+      const l = await data.saveLink(env, fields, id);
+      return { result: JSON.stringify(l), step: `${id ? "Updated" : "Added"} link “${l.title}”`, changed: "links" };
+    }
+    case "delete_link": {
+      const l = await data.getLink(env, String(input.id));
+      if (!l || !(await data.deleteLink(env, l.id))) return { result: "No link with that id." };
+      return { result: "Deleted.", step: `Deleted link “${l.title}”`, changed: "links" };
     }
     case "list_tasks": {
       const all = await data.listTasks(env);

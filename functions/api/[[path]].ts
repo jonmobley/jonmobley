@@ -30,6 +30,8 @@ const collections = {
   setlists: { list: data.listSetlists, get: data.getSetlist, save: data.saveSetlist, remove: data.deleteSetlist },
   playlists: { list: data.listPlaylists, get: data.getPlaylist, save: data.savePlaylist, remove: data.deletePlaylist },
   equipment: { list: data.listEquipment, get: data.getEquipment, save: data.saveEquipment, remove: data.deleteEquipment },
+  files: { list: data.listFiles, get: data.getFile, save: data.saveFile, remove: data.deleteFile },
+  links: { list: data.listLinks, get: data.getLink, save: data.saveLink, remove: data.deleteLink },
   tasks: { list: data.listTasks, get: data.getTask, save: data.saveTask, remove: data.deleteTask },
   notes: { list: data.listNotes, get: data.getNote, save: data.saveNote, remove: data.deleteNote },
 } as const;
@@ -66,7 +68,9 @@ async function media(request: Request, env: Env, key: string, cache = "private, 
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
   const name = obj.customMetadata?.name;
-  if (name) headers.set("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
+  const opens = /^(image\/(?!vnd)|audio\/|video\/|application\/pdf|text\/plain)/.test(obj.httpMetadata?.contentType || "");
+  const disposition = opens ? "inline" : "attachment";
+  if (name) headers.set("Content-Disposition", `${disposition}; filename*=UTF-8''${encodeURIComponent(name)}`);
   if (range && obj.range && "offset" in obj.range) {
     const start = obj.range.offset ?? 0;
     const length = obj.range.length ?? obj.size - start;
@@ -144,6 +148,8 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
       case "tasks":
       case "notes":
       case "equipment":
+      case "files":
+      case "links":
         return await collection(request, env, section, id);
       case "media": {
         if (method === "POST" && !id) {

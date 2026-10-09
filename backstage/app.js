@@ -1,7 +1,7 @@
 // Backstage: Jon's private trick library, set lists and playlists, with a chat assistant.
 // Plain ES module, no build step. Preact + htm are vendored in ./vendor.
 import { html, render, useState, useEffect, useRef, useMemo, useCallback } from "./vendor/preact-htm.js";
-import { DEMO_TRICKS, DEMO_SETLISTS, DEMO_PLAYLISTS, DEMO_EQUIPMENT, DEMO_TASKS, DEMO_NOTES, adopt } from "./demo.js";
+import { DEMO_TRICKS, DEMO_SETLISTS, DEMO_PLAYLISTS, DEMO_EQUIPMENT, DEMO_TASKS, DEMO_NOTES, DEMO_FILES, DEMO_LINKS, adopt } from "./demo.js";
 
 // ---------- small helpers ----------
 
@@ -164,6 +164,11 @@ const PATHS = {
   checkbox: "M9 11l3 3 8-8M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
   note: "M4 4h16v12l-6 4H4zM14 20v-4h6M8 9h8M8 13h5",
   pin: "M12 17v5M8 3h8l-1 6 3 4H6l3-4z",
+  folder: "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  more: "M5 12h.01M12 12h.01M19 12h.01",
+  download: "M12 3v12M7 10l5 5 5-5M5 21h14",
+  upload: "M12 21V9M7 14l5-5 5 5M5 3h14",
+  edit: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z",
   rows: "M3 5h18M3 12h18M3 19h18",
   share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13",
 };
@@ -248,7 +253,11 @@ const SECTIONS = [
   ["playlists", "Playlists", "Music", "music"],
   ["tasks", "Tasks", "Tasks", "checkbox"],
   ["notes", "Notes", "Notes", "note"],
+  ["files", "Files", "Files", "folder"],
+  ["links", "Links", "Links", "link"],
 ];
+// Phones show these in the bottom bar; the rest live under "More".
+const PHONE_MAIN = ["tricks", "gear", "sets", "tasks"];
 
 function Backstage({ onOut }) {
   const route = useHashRoute();
@@ -258,6 +267,9 @@ function Backstage({ onOut }) {
   const [equipment, setEquipment] = useState(null);
   const [tasks, setTasks] = useState(null);
   const [notes, setNotes] = useState(null);
+  const [files, setFiles] = useState(null);
+  const [links, setLinks] = useState(null);
+  const [more, setMore] = useState(false);
   const [pane, setPane] = useState(() => (matchMedia("(max-width: 900px)").matches ? "lib" : "both"));
   const [settings, setSettings] = useState(false);
   const [toast, setToast] = useState("");
@@ -273,6 +285,8 @@ function Backstage({ onOut }) {
     if (want("equipment")) jobs.push(api("equipment").then(setEquipment));
     if (want("tasks")) jobs.push(api("tasks").then(setTasks));
     if (want("notes")) jobs.push(api("notes").then(setNotes));
+    if (want("files")) jobs.push(api("files").then(setFiles));
+    if (want("links")) jobs.push(api("links").then(setLinks));
     await Promise.all(jobs).catch((e) => setToast(e.message));
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -291,7 +305,9 @@ function Backstage({ onOut }) {
     equipment: sample(equipment, DEMO_EQUIPMENT),
     tasks: sample(tasks, DEMO_TASKS),
     notes: sample(notes, DEMO_NOTES),
-    real: { tricks, setlists, playlists, equipment, tasks, notes },
+    files: sample(files, DEMO_FILES),
+    links: sample(links, DEMO_LINKS),
+    real: { tricks, setlists, playlists, equipment, tasks, notes, files, links },
     setTasks, load, setToast, setShow,
   };
   const [section, id] = route;
@@ -307,10 +323,13 @@ function Backstage({ onOut }) {
   else if (section === "tasks") view = html`<${TaskPage} ctx=${ctx} />`;
   else if (section === "notes" && id) view = html`<${NoteEditor} key=${id} id=${id} ctx=${ctx} />`;
   else if (section === "notes") view = html`<${NoteList} ctx=${ctx} />`;
+  else if (section === "files") view = html`<${FilesPage} ctx=${ctx} />`;
+  else if (section === "links") view = html`<${LinksPage} ctx=${ctx} />`;
   else if (section === "tricks" && id) view = html`<${TrickEditor} key=${id} id=${id} ctx=${ctx} />`;
   else view = html`<${TrickList} ctx=${ctx} />`;
 
-  const setTab = (t) => { go(t); if (pane === "chat") setPane("lib"); };
+  const setTab = (t) => { setMore(false); go(t); if (pane === "chat") setPane("lib"); };
+  const inMore = !PHONE_MAIN.includes(tab);
   const openTasks = (tasks || []).filter((t) => !t.done).length;
 
   return html`
@@ -333,12 +352,23 @@ function Backstage({ onOut }) {
         <section class="stage">${view}</section>
       </main>
       <nav class="bottombar">
-        ${SECTIONS.map(([k, , short, icon]) => html`<button class=${tab === k && pane !== "chat" ? "on" : ""} onClick=${() => setTab(k)}>
+        ${SECTIONS.filter(([k]) => PHONE_MAIN.includes(k)).map(([k, , short, icon]) => html`<button class=${tab === k && pane !== "chat" ? "on" : ""} onClick=${() => setTab(k)}>
           <span class="bb-icon"><${Icon} name=${icon} />${k === "tasks" && openTasks > 0 ? html`<i class="bb-badge">${openTasks}</i>` : null}</span>
           <span>${short}</span>
         </button>`)}
+        <button class=${(inMore && pane !== "chat") || more ? "on" : ""} onClick=${() => setMore(!more)} aria-expanded=${more}>
+          <span class="bb-icon"><${Icon} name="more" /></span>
+          <span>More</span>
+        </button>
       </nav>
     </div>
+    ${more && html`<div class="sheet-wrap" onClick=${(e) => e.target === e.currentTarget && setMore(false)}>
+      <div class="sheet" role="menu">
+        ${SECTIONS.filter(([k]) => !PHONE_MAIN.includes(k)).map(([k, label, , icon]) => html`<button role="menuitem" class=${tab === k ? "on" : ""} onClick=${() => setTab(k)}>
+          <span class="sheet-ico"><${Icon} name=${icon} /></span>${label}
+        </button>`)}
+      </div>
+    </div>`}
     ${show && html`<${ShowMode} ...${show} onClose=${() => setShow(null)} />`}
     ${settings && html`<${Settings} onClose=${() => setSettings(false)} onOut=${onOut} />`}
     ${toast && html`<div class="toast" role="status">${toast}</div>`}
@@ -1025,6 +1055,11 @@ function SetlistEditor({ id, ctx }) {
           ${(ctx.tasks || []).filter((t) => t.setlist_id === id).map((t) => html`<${TaskRow} key=${t.id} task=${t} ctx=${ctx} showSet=${false} />`)}
           ${!draft.demo && html`<${TaskAdd} ctx=${ctx} setlistId=${id} placeholder="Add a task for this show…" />`}
         </div>`}
+        ${!isNew && html`<div class="section">
+          <h3>Files for this show</h3>
+          <div class="flist">${(ctx.files || []).filter((f) => f.setlist_id === id).map((f) => html`<${FileRow} key=${f.id} file=${f} ctx=${ctx} showSet=${false} />`)}</div>
+          ${!draft.demo && html`<div><${FileUploadButton} ctx=${ctx} extra=${{ setlist_id: id }} label="Upload insurance, contract…" primary=${false} /></div>`}
+        </div>`}
         <${Field} label="NOTES"><${Area} rows="3" value=${draft.notes} placeholder="Stage size, tech, contact on site…" onInput=${(v) => set({ notes: v })} /><//>
       </div>
     </div>
@@ -1607,6 +1642,249 @@ function NoteEditor({ id, ctx }) {
       <div class="editor note-editor">
         <${TitleInput} placeholder="Title" value=${draft.title} onInput=${(v) => change({ title: v })} autofocus=${!draft.title && !draft.body} />
         <${Area} class="textarea note-body" rows="10" max=${100000} value=${draft.body} placeholder="Start writing…" onInput=${(v) => change({ body: v })} />
+      </div>
+    </div>`;
+}
+
+// ---------- files ----------
+
+const FILE_FOLDERS = ["Insurance", "Logos & branding", "Contracts", "Promo", "Invoices"];
+const fmtSize = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : n >= 1e3 ? `${Math.round(n / 1e3)} KB` : `${n || 0} B`);
+const fileExt = (f) => (f.name.includes(".") ? f.name.split(".").pop() : f.key.split(".").pop() || "file").slice(0, 5).toUpperCase();
+const isPreviewable = (f) => /^image\/(jpeg|png|webp|gif|svg\+xml)$/.test(f.type);
+
+function expiryInfo(expires) {
+  if (!expires) return null;
+  const t = today();
+  const [y, m, d] = expires.split("-").map(Number);
+  const nice = new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  if (expires < t) return { cls: "expired", text: `Expired ${nice}` };
+  const days = Math.round((new Date(y, m - 1, d) - new Date(...t.split("-").map((x, i) => (i === 1 ? Number(x) - 1 : Number(x))))) / 86400000);
+  if (days <= 30) return { cls: "soon", text: days === 0 ? "Expires today" : `Expires in ${days} day${days === 1 ? "" : "s"}` };
+  return { cls: "", text: `Expires ${nice}` };
+}
+
+/** Uploads files into the Files area (optionally into a folder or for a show). */
+async function uploadFiles(ctx, list, extra = {}) {
+  let ok = 0;
+  for (const file of list) {
+    try {
+      const up = await upload(file);
+      await api("files", { method: "POST", body: { key: up.key, name: file.name, ...extra } });
+      ok++;
+    } catch (e) {
+      ctx.setToast(`${file.name}: ${e.message}`);
+    }
+  }
+  if (ok) {
+    await ctx.load(["files"]);
+    ctx.setToast(ok === 1 ? "File added" : `${ok} files added`);
+  }
+}
+
+function FileUploadButton({ ctx, extra, label = "Upload", primary = true }) {
+  const input = useRef();
+  const [busy, setBusy] = useState(false);
+  return html`<button class=${`btn ${primary ? "primary" : ""}`} disabled=${busy} onClick=${() => input.current.click()}>
+    <${Icon} name="upload" />${busy ? "Uploading…" : label}
+    <input ref=${input} type="file" hidden multiple onChange=${async (e) => {
+      const list = [...e.target.files];
+      e.target.value = "";
+      if (!list.length) return;
+      setBusy(true);
+      await uploadFiles(ctx, list, extra);
+      setBusy(false);
+    }} />
+  </button>`;
+}
+
+function FileRow({ file, ctx, showSet = true }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(file.name);
+  const [notes, setNotes] = useState(file.notes);
+  useEffect(() => { setName(file.name); setNotes(file.notes); }, [file.name, file.notes]);
+  const set = (ctx.setlists || []).find((s) => s.id === file.setlist_id);
+  const exp = expiryInfo(file.expires);
+  const folders = uniqueSorted([...FILE_FOLDERS, ...(ctx.real.files || []).map((f) => f.folder)]);
+  const patch = async (p) => {
+    if (file.demo) return ctx.setToast("That's a sample. Upload your own files and the samples go away.");
+    try {
+      await api(`files/${file.id}`, { method: "PUT", body: p });
+      await ctx.load(["files"]);
+    } catch (e) {
+      ctx.setToast(e.message);
+    }
+  };
+  const remove = async () => {
+    if (!confirm(`Delete “${file.name}”? The file itself is deleted too.`)) return;
+    await api(`files/${file.id}`, { method: "DELETE" }).catch((e) => ctx.setToast(e.message));
+    await ctx.load(["files"]);
+  };
+  const url = file.key ? mediaUrl(file.key) : null;
+  return html`<div class=${`frow ${open ? "open" : ""}`}>
+    <div class="frow-line">
+      <button class="frow-main" onClick=${() => (file.demo ? patch({}) : setOpen(!open))}>
+        <span class="fthumb">${url && isPreviewable(file) ? html`<img src=${url} alt="" loading="lazy" />` : html`<span class="fext">${fileExt(file)}</span>`}</span>
+        <span class="fmain">
+          <span class="name">${file.name} <${SampleTag} item=${file} /></span>
+          <span class="sub">${[file.folder, fmtSize(file.size), showSet && set ? set.name : "", ago(file.updated_at)].filter(Boolean).join(" · ")}</span>
+          ${exp && html`<span class=${`exp ${exp.cls}`}>${exp.text}</span>`}
+        </span>
+      </button>
+      ${url && html`<a class="icon-btn" href=${url} target="_blank" rel="noopener" aria-label=${`Open ${file.name}`}><${Icon} name="external" /></a>`}
+      ${url && html`<a class="icon-btn" href=${url} download=${file.name} aria-label=${`Download ${file.name}`}><${Icon} name="download" /></a>`}
+    </div>
+    ${open && html`<div class="frow-edit">
+      <${Field} label="NAME"><input class="input" value=${name} onInput=${(e) => setName(e.target.value)} onBlur=${() => name.trim() && name !== file.name && patch({ name })} /><//>
+      <div class="cols">
+        <${Field} label="FOLDER"><input class="input" list="file-folders" value=${file.folder} placeholder="Insurance, Contracts…" onChange=${(e) => patch({ folder: e.target.value })} /><//>
+        <${Field} label="EXPIRES"><input class="input" type="date" value=${file.expires} onChange=${(e) => patch({ expires: e.target.value })} /><//>
+      </div>
+      <${Field} label="FOR SHOW">
+        <select class="select" value=${file.setlist_id || ""} onChange=${(e) => patch({ setlist_id: e.target.value || null })}>
+          <option value="">None</option>
+          ${(ctx.real.setlists || []).map((s) => html`<option value=${s.id}>${s.name}</option>`)}
+        </select>
+      <//>
+      <${Field} label="NOTES"><${Area} value=${notes} onInput=${setNotes} onBlur=${() => notes !== file.notes && patch({ notes })} /><//>
+      <datalist id="file-folders">${folders.map((f) => html`<option value=${f} />`)}</datalist>
+      <div class="task-acts">
+        <button class="btn danger" onClick=${remove}><${Icon} name="trash" />Delete</button>
+        <div style="flex:1"></div>
+        <button class="btn" onClick=${() => setOpen(false)}>Done</button>
+      </div>
+    </div>`}
+  </div>`;
+}
+
+function FilesPage({ ctx }) {
+  const [q, setQ] = useState("");
+  const [folder, setFolder] = useState(() => store.get("file-folder") || "");
+  const [over, setOver] = useState(false);
+  useEffect(() => { store.set("file-folder", folder || null); }, [folder]);
+  const { files } = ctx;
+  const folders = uniqueSorted((files || []).map((f) => f.folder));
+  const expiring = (files || []).filter((f) => f.expires && (expiryInfo(f.expires)?.cls || "") !== "").length;
+  const shown = (files || []).filter((f) => {
+    if (folder === "__expiring") { if (!f.expires || !expiryInfo(f.expires).cls) return false; }
+    else if (folder && f.folder !== folder) return false;
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    return words.every((w) => `${f.name} ${f.folder} ${f.notes}`.toLowerCase().includes(w));
+  });
+  const extra = folder && folder !== "__expiring" ? { folder } : {};
+  return html`
+    <div class="bar">
+      <h1>Files</h1>
+      <label class="search"><${Icon} name="search" /><span class="sr">Search files</span>
+        <input placeholder="Search files…" value=${q} onInput=${(e) => setQ(e.target.value)} />
+      </label>
+      <div class="grow"></div>
+      <${FileUploadButton} ctx=${ctx} extra=${extra} />
+    </div>
+    <div class="filters">
+      <div class="chips">
+        <button class=${`chip ${!folder ? "on" : ""}`} onClick=${() => setFolder("")}>All</button>
+        ${expiring > 0 && html`<button class=${`chip warn ${folder === "__expiring" ? "on" : ""}`} onClick=${() => setFolder(folder === "__expiring" ? "" : "__expiring")}>Expiring · ${expiring}</button>`}
+        ${folders.map((f) => html`<button class=${`chip ${folder === f ? "on" : ""}`} onClick=${() => setFolder(folder === f ? "" : f)}>${f}</button>`)}
+      </div>
+    </div>
+    <div class=${`scroll pad ${over ? "drop-over" : ""}`}
+      onDragOver=${(e) => { if ([...e.dataTransfer.types].includes("Files")) { e.preventDefault(); setOver(true); } }}
+      onDragLeave=${() => setOver(false)}
+      onDrop=${(e) => { e.preventDefault(); setOver(false); uploadFiles(ctx, [...e.dataTransfer.files], extra); }}>
+      <${SampleNote} list=${files} what="files" newPath="files" />
+      ${files && shown.length === 0 && html`<div class="empty"><h2>${q || folder ? "No matches" : "No files yet"}</h2><p>${q || folder ? "Nothing fits that search." : "Upload your logo, insurance policies, contracts or anything else, or drag files here."}</p></div>`}
+      <div class="flist">${shown.map((f) => html`<${FileRow} key=${f.id} file=${f} ctx=${ctx} />`)}</div>
+      <p class="hint drop-hint">Tip: drag files onto this page to upload them${folder && folder !== "__expiring" ? ` into ${folder}` : ""}.</p>
+    </div>`;
+}
+
+// ---------- links ----------
+
+const linkHost = (url) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
+const avatarHue = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+
+function LinkForm({ ctx, link, onDone }) {
+  const [form, setForm] = useState(() => ({ title: link?.title || "", url: link?.url || "", folder: link?.folder || "", note: link?.note || "", pinned: !!link?.pinned }));
+  const [err, setErr] = useState("");
+  const folders = uniqueSorted(["Insurance", "Payments", "Booking", "Social", ...(ctx.real.links || []).map((l) => l.folder)]);
+  const save = async (e) => {
+    e.preventDefault();
+    setErr("");
+    try {
+      await api(link ? `links/${link.id}` : "links", { method: link ? "PUT" : "POST", body: form });
+      await ctx.load(["links"]);
+      onDone();
+    } catch (e2) {
+      setErr(e2.message);
+    }
+  };
+  const remove = async () => {
+    if (!confirm(`Delete the “${link.title}” link?`)) return;
+    await api(`links/${link.id}`, { method: "DELETE" }).catch((e2) => ctx.setToast(e2.message));
+    await ctx.load(["links"]);
+    onDone();
+  };
+  return html`<form class="link-form" onSubmit=${save}>
+    <div class="cols">
+      <${Field} label="WEB ADDRESS"><input class="input" inputmode="url" autofocus=${!link} placeholder="thimble.com" value=${form.url} onInput=${(e) => setForm({ ...form, url: e.target.value })} /><//>
+      <${Field} label="NAME"><input class="input" placeholder="Thimble" value=${form.title} onInput=${(e) => setForm({ ...form, title: e.target.value })} /><//>
+      <${Field} label="GROUP"><input class="input" list="link-folders" placeholder="Insurance, Payments…" value=${form.folder} onInput=${(e) => setForm({ ...form, folder: e.target.value })} /><//>
+      <${Field} label="NOTE"><input class="input" placeholder="Optional" value=${form.note} onInput=${(e) => setForm({ ...form, note: e.target.value })} /><//>
+    </div>
+    <datalist id="link-folders">${folders.map((f) => html`<option value=${f} />`)}</datalist>
+    <label class="check-line"><input type="checkbox" checked=${form.pinned} onChange=${(e) => setForm({ ...form, pinned: e.target.checked })} /> Pin to the top</label>
+    ${err && html`<div class="msg-err">${err}</div>`}
+    <div class="task-acts">
+      ${link && html`<button type="button" class="btn danger" onClick=${remove}><${Icon} name="trash" />Delete</button>`}
+      <div style="flex:1"></div>
+      <button type="button" class="btn" onClick=${onDone}>Cancel</button>
+      <button class="btn primary" disabled=${!form.url.trim()}>${link ? "Save" : "Add link"}</button>
+    </div>
+  </form>`;
+}
+
+function LinksPage({ ctx }) {
+  const [q, setQ] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const { links } = ctx;
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = (links || []).filter((l) => words.every((w) => `${l.title} ${l.url} ${l.folder} ${l.note}`.toLowerCase().includes(w)));
+  const groups = [];
+  const pinned = shown.filter((l) => l.pinned);
+  if (pinned.length) groups.push(["Pinned", pinned]);
+  for (const f of uniqueSorted(shown.filter((l) => !l.pinned).map((l) => l.folder))) groups.push([f, shown.filter((l) => !l.pinned && l.folder === f)]);
+  const loose = shown.filter((l) => !l.pinned && !l.folder);
+  if (loose.length) groups.push([groups.length ? "Other" : "", loose]);
+  return html`
+    <div class="bar">
+      <h1>Links</h1>
+      <label class="search"><${Icon} name="search" /><span class="sr">Search links</span>
+        <input placeholder="Search links…" value=${q} onInput=${(e) => setQ(e.target.value)} />
+      </label>
+      <div class="grow"></div>
+      <button class="btn primary" onClick=${() => { setAdding(true); setEditing(null); }}><${Icon} name="plus" />Add link</button>
+    </div>
+    <div class="scroll pad">
+      <div class="links-wrap">
+        ${adding && html`<${LinkForm} ctx=${ctx} onDone=${() => setAdding(false)} />`}
+        <${SampleNote} list=${links} what="links" newPath="links" />
+        ${links && shown.length === 0 && html`<div class="empty"><h2>No matches</h2><p>No link fits that search.</p></div>`}
+        ${groups.map(([label, items]) => html`<div class="link-group">
+          ${label && html`<h3>${label}</h3>`}
+          <div class="link-grid">
+            ${items.map((l) => editing === l.id
+              ? html`<div class="link-edit-wrap"><${LinkForm} ctx=${ctx} link=${l} onDone=${() => setEditing(null)} /></div>`
+              : html`<div class="link-tile">
+                  <a href=${l.url} target="_blank" rel="noopener noreferrer" class="lt-main">
+                    <span class="lt-av" style=${`background:hsl(${avatarHue(linkHost(l.url))} 45% 32%)`}>${(l.title[0] || "?").toUpperCase()}</span>
+                    <span class="lt-txt"><span class="name">${l.title} <${SampleTag} item=${l} /></span><span class="sub">${l.note || linkHost(l.url)}</span></span>
+                  </a>
+                  ${!l.demo && html`<button class="icon-btn" aria-label=${`Edit ${l.title}`} onClick=${() => { setEditing(l.id); setAdding(false); }}><${Icon} name="edit" /></button>`}
+                </div>`)}
+          </div>
+        </div>`)}
       </div>
     </div>`;
 }

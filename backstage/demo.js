@@ -142,3 +142,14 @@ export const DEMO_NOTES = [
   { id: "demo-note-1", title: "Opening lines", pinned: true, body: "Ideas for a stronger first minute.\n\n• Walk on to music, no talking for 10 seconds\n• First line gets a laugh before any magic\n• Name check the host" },
   { id: "demo-note-2", title: "Venue: Hotel ballroom", pinned: false, body: "Load-in through the kitchen. Ask for the AV tech by name. Stage is 16 inches high, no stairs on the left." },
 ].map((n) => ({ created_at: t0, updated_at: t0, demo: true, ...n }));
+
+export const DEMO_FILES = [
+  { id: "demo-file-1", name: "Logo (sample).png", key: "", type: "image/png", size: 182000, folder: "Logos & branding", notes: "", setlist_id: null, expires: "" },
+  { id: "demo-file-2", name: "Event insurance certificate (sample).pdf", key: "", type: "application/pdf", size: 96000, folder: "Insurance", notes: "From Thimble", setlist_id: "demo-set", expires: "2026-12-13" },
+  { id: "demo-file-3", name: "Performance agreement (sample).docx", key: "", type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: 41000, folder: "Contracts", notes: "", setlist_id: "demo-set", expires: "" },
+].map((f) => ({ created_at: t0, updated_at: t0, demo: true, ...f }));
+
+export const DEMO_LINKS = [
+  { id: "demo-link-1", title: "Thimble", url: "https://www.thimble.com/", note: "Event insurance", folder: "Insurance", pinned: true },
+  { id: "demo-link-2", title: "Booking form", url: "https://jonmobley.com/booking/", note: "", folder: "My sites", pinned: false },
+].map((l) => ({ created_at: t0, updated_at: t0, demo: true, ...l }));

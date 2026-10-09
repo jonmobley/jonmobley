@@ -217,6 +217,7 @@ export async function saveSetlist(env: Env, input: Json, id?: string): Promise<S
 
 export async function deleteSetlist(env: Env, id: string): Promise<boolean> {
   await env.DB.prepare("UPDATE tasks SET setlist_id = NULL WHERE setlist_id = ?").bind(id).run();
+  await env.DB.prepare("UPDATE files SET setlist_id = NULL WHERE setlist_id = ?").bind(id).run();
   const r = await env.DB.prepare("DELETE FROM setlists WHERE id = ?").bind(id).run();
   return r.meta.changes > 0;
 }
@@ -290,19 +291,35 @@ const MEDIA_TYPES: Record<string, string> = {
   "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "image/heic": "heic",
   "application/pdf": "pdf", "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/wav": "wav",
   "audio/x-wav": "wav", "audio/aac": "aac", "video/mp4": "mp4", "video/quicktime": "mov",
+  // Files area: logos, documents, spreadsheets, slides, archives.
+  "image/svg+xml": "svg", "application/postscript": "eps", "image/vnd.adobe.photoshop": "psd",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx", "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx", "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx", "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.apple.pages": "pages", "application/vnd.apple.numbers": "numbers", "application/vnd.apple.keynote": "key",
+  "text/plain": "txt", "text/csv": "csv", "application/rtf": "rtf", "application/zip": "zip",
 };
+// Some files arrive without a type (Apple documents, logos); trust the extension only for these.
+const TYPE_BY_EXT: Record<string, string> = Object.fromEntries(
+  Object.entries(MEDIA_TYPES).map(([type, ext]) => [ext, type]).concat([["jpeg", "image/jpeg"], ["ai", "application/postscript"]]),
+);
 export const MAX_UPLOAD_BYTES = 95 * 1024 * 1024;
 
 export async function putMedia(env: Env, file: File): Promise<{ key: string; type: string; name: string; size: number }> {
-  const ext = MEDIA_TYPES[file.type];
-  if (!ext) throw new InputError("That file type isn't supported. Use a photo, PDF, audio or video file.");
+  let type = file.type;
+  if (!MEDIA_TYPES[type]) {
+    const fromName = TYPE_BY_EXT[(file.name.split(".").pop() || "").toLowerCase()];
+    if (fromName && (!type || type === "application/octet-stream")) type = fromName;
+  }
+  const ext = MEDIA_TYPES[type];
+  if (!ext) throw new InputError("That file type isn't supported. Photos, PDFs, documents, spreadsheets, slides, audio, video and zip files work.");
   if (file.size > MAX_UPLOAD_BYTES) throw new InputError("That file is too big (95 MB max).");
   const key = `media/${newId()}.${ext}`;
   await env.MEDIA.put(key, file.stream(), {
-    httpMetadata: { contentType: file.type },
+    httpMetadata: { contentType: type },
     customMetadata: { name: file.name.slice(0, 200) },
   });
-  return { key, type: file.type, name: file.name, size: file.size };
+  return { key, type, name: file.name, size: file.size };
 }
 
 // ---------- tasks ----------
@@ -480,5 +497,114 @@ export async function saveEquipment(env: Env, input: Json, id?: string): Promise
 
 export async function deleteEquipment(env: Env, id: string): Promise<boolean> {
   const r = await env.DB.prepare("DELETE FROM equipment WHERE id = ?").bind(id).run();
+  return r.meta.changes > 0;
+}
+
+// ---------- files ----------
+
+export interface StoredFile {
+  id: string; name: string; key: string; type: string; size: number; folder: string; notes: string;
+  setlist_id: string | null; expires: string; created_at: number; updated_at: number;
+}
+
+export async function listFiles(env: Env): Promise<StoredFile[]> {
+  const { results } = await env.DB.prepare("SELECT * FROM files ORDER BY updated_at DESC").all<StoredFile>();
+  return results;
+}
+
+export async function getFile(env: Env, id: string): Promise<StoredFile | null> {
+  return env.DB.prepare("SELECT * FROM files WHERE id = ?").bind(id).first<StoredFile>();
+}
+
+/** Creates a file record for an upload (key from /api/media), or updates its details. */
+export async function saveFile(env: Env, input: Json, id?: string): Promise<StoredFile> {
+  const existing = id ? await getFile(env, id) : null;
+  if (id && !existing) throw new InputError("That file doesn't exist.");
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(input, k);
+  const now = Date.now();
+  let f: StoredFile;
+  if (existing) {
+    f = { ...existing, updated_at: now };
+  } else {
+    const key = mediaKey(input.key);
+    const head = key ? await env.MEDIA.head(key) : null;
+    if (!key || !head) throw new InputError("Upload the file first.");
+    f = {
+      id: newId(), name: head.customMetadata?.name || key.split("/")[1], key, type: head.httpMetadata?.contentType || "",
+      size: head.size, folder: "", notes: "", setlist_id: null, expires: "", created_at: now, updated_at: now,
+    };
+  }
+  if (has("name")) f.name = str(input.name, 200) || f.name;
+  if (has("folder")) f.folder = str(input.folder, 80);
+  if (has("notes")) f.notes = str(input.notes);
+  if (has("setlist_id")) f.setlist_id = optStr(input.setlist_id, 64) ?? null;
+  if (has("expires")) {
+    const d = str(input.expires, 10);
+    if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new InputError("Dates look like 2026-10-31.");
+    f.expires = d;
+  }
+  await env.DB.prepare(
+    `INSERT INTO files (id, name, key, type, size, folder, notes, setlist_id, expires, created_at, updated_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+     ON CONFLICT(id) DO UPDATE SET name=?2, folder=?6, notes=?7, setlist_id=?8, expires=?9, updated_at=?11`,
+  )
+    .bind(f.id, f.name, f.key, f.type, f.size, f.folder, f.notes, f.setlist_id, f.expires, f.created_at, f.updated_at)
+    .run();
+  return f;
+}
+
+/** Deletes the record and the stored file itself. */
+export async function deleteFile(env: Env, id: string): Promise<boolean> {
+  const f = await getFile(env, id);
+  if (!f) return false;
+  await env.DB.prepare("DELETE FROM files WHERE id = ?").bind(id).run();
+  await env.MEDIA.delete(f.key);
+  return true;
+}
+
+// ---------- links ----------
+
+export interface QuickLink { id: string; title: string; url: string; note: string; folder: string; pinned: boolean; created_at: number; updated_at: number }
+
+const rowToLink = (r: Json): QuickLink => ({ ...(r as unknown as QuickLink), pinned: !!r.pinned });
+
+export async function listLinks(env: Env): Promise<QuickLink[]> {
+  const { results } = await env.DB.prepare("SELECT * FROM links ORDER BY pinned DESC, title COLLATE NOCASE").all<Json>();
+  return results.map(rowToLink);
+}
+
+export async function getLink(env: Env, id: string): Promise<QuickLink | null> {
+  const r = await env.DB.prepare("SELECT * FROM links WHERE id = ?").bind(id).first<Json>();
+  return r ? rowToLink(r) : null;
+}
+
+export async function saveLink(env: Env, input: Json, id?: string): Promise<QuickLink> {
+  const existing = id ? await getLink(env, id) : null;
+  if (id && !existing) throw new InputError("That link doesn't exist.");
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(input, k);
+  const now = Date.now();
+  const l: QuickLink = { ...(existing ?? { id: newId(), title: "", url: "", note: "", folder: "", pinned: false, created_at: now }), updated_at: now } as QuickLink;
+  if (has("url")) {
+    const url = safeUrl(input.url);
+    if (!url) throw new InputError("That doesn't look like a web address.");
+    l.url = url;
+  }
+  if (has("title")) l.title = str(input.title, 200);
+  if (has("note")) l.note = str(input.note, 2000);
+  if (has("folder")) l.folder = str(input.folder, 80);
+  if (has("pinned")) l.pinned = input.pinned === true || input.pinned === 1;
+  if (!l.url) throw new InputError("A link needs a web address.");
+  if (!l.title) l.title = new URL(l.url).hostname.replace(/^www\./, "");
+  await env.DB.prepare(
+    `INSERT INTO links (id, title, url, note, folder, pinned, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+     ON CONFLICT(id) DO UPDATE SET title=?2, url=?3, note=?4, folder=?5, pinned=?6, updated_at=?8`,
+  )
+    .bind(l.id, l.title, l.url, l.note, l.folder, l.pinned ? 1 : 0, l.created_at, l.updated_at)
+    .run();
+  return l;
+}
+
+export async function deleteLink(env: Env, id: string): Promise<boolean> {
+  const r = await env.DB.prepare("DELETE FROM links WHERE id = ?").bind(id).run();
   return r.meta.changes > 0;
 }

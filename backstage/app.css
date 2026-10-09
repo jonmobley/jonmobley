@@ -50,12 +50,20 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
   display: grid; place-items: center; font-size: 12px; font-weight: 700; letter-spacing: .02em;
 }
 .tabs { display: flex; gap: 2px; margin-left: 18px; background: var(--panel); border-radius: 999px; padding: 3px; }
+.tabs { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
 .tab {
-  padding: 5px 14px; border-radius: 999px; color: var(--muted); font-size: 14px; font-weight: 500; white-space: nowrap;
+  flex: none;
+  padding: 5px 12px; border-radius: 999px; color: var(--muted); font-size: 14px; font-weight: 500; white-space: nowrap;
 }
 .tab:hover { color: var(--ink); }
 .tab.on { background: var(--card-hover); color: var(--ink); }
 .top .spacer { flex: 1; }
+/* Desktop below ~1400px: View site / Settings become icons so all eight tabs fit. */
+@media (min-width: 901px) and (max-width: 1400px) {
+  .top .ghost .word { display: none; }
+}
+.tabs { flex: 0 1 auto; }
 /* Desktop: the brand spans the chat column, so the tabs start at the library panel's left edge. */
 @media (min-width: 901px) {
   .brand { width: 424px; flex: none; } /* 20px padding + 424 + 12px gap = 456 = chat 440 + 16 */
@@ -229,6 +237,48 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .pill.g-retired::before { background: #666; }
 .gear-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .gear-pick .tag { padding: 5px 6px 5px 12px; font-size: 14px; }
+
+/* files */
+.flist { display: flex; flex-direction: column; gap: 8px; max-width: 900px; }
+.frow { background: var(--card); border: 1px solid #333; border-radius: 12px; }
+.frow-line { display: flex; align-items: center; gap: 4px; padding: 8px 8px 8px 10px; }
+.frow-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; }
+.fthumb { width: 48px; height: 48px; border-radius: 9px; overflow: hidden; background: #1d1d1d; flex: none; display: grid; place-items: center; }
+.fthumb img { width: 100%; height: 100%; object-fit: contain; background: #fff1; }
+.fext { font-size: 11px; font-weight: 700; color: var(--gold); letter-spacing: .04em; }
+.fmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fmain .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fmain .sub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp { font-size: 12px; color: var(--muted); }
+.exp.soon { color: var(--amber); }
+.exp.expired { color: #fca5a5; }
+.frow-edit { padding: 2px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.chip.warn { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 50%, transparent); }
+.chip.warn.on { background: var(--amber); color: #1a1205; }
+.drop-over { outline: 2px dashed var(--accent) !important; outline-offset: -8px; }
+.drop-hint { margin-top: 14px; }
+
+/* links */
+.links-wrap { max-width: 980px; display: flex; flex-direction: column; gap: 18px; }
+.link-group h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.link-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.link-tile { display: flex; align-items: center; gap: 4px; background: var(--card); border: 1px solid #333; border-radius: 12px; padding: 6px 6px 6px 8px; }
+.link-tile:hover { background: var(--card-hover); }
+.lt-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-decoration: none; padding: 4px 0; }
+.lt-av { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; color: #fff; flex: none; }
+.lt-txt { min-width: 0; display: flex; flex-direction: column; }
+.lt-txt .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt-txt .sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-edit-wrap { grid-column: 1 / -1; }
+.link-form { background: var(--card); border: 1px solid #3a3a3a; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.check-line { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+
+/* phone "More" sheet */
+.sheet-wrap { position: fixed; inset: 0; z-index: 55; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; }
+.sheet { width: 100%; background: #222; border-top-left-radius: 18px; border-top-right-radius: 18px; padding: 10px 10px calc(76px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sheet button { display: flex; align-items: center; gap: 10px; padding: 14px; border-radius: 12px; background: var(--card); font-weight: 500; }
+.sheet button.on { background: var(--card-hover); outline: 1px solid #555 !important; }
+.sheet-ico { width: 34px; height: 34px; border-radius: 9px; background: #1b1b1b; display: grid; place-items: center; color: var(--gold); }
 
 /* tasks */
 .tasks-wrap { max-width: 760px; display: flex; flex-direction: column; gap: 14px; }
