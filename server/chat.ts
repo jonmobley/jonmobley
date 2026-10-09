@@ -5,6 +5,7 @@
 import Anthropic, { toFile } from "@anthropic-ai/sdk";
 import type { Env } from "./env";
 import * as data from "./data";
+import * as shares from "./shares";
 
 const MODEL = "claude-opus-5-5";
 const MAX_TOOL_ROUNDS = 12;
@@ -28,6 +29,7 @@ How to work:
 - Ask before deleting anything, and before replacing a whole set list or playlist he didn't ask to rebuild.
 - When building a set, think like a working pro: strong opener, build, a closer that lands; mind resets, angles and the audience. Keep to the requested length.
 - Keep replies short and conversational. Say what you changed in a sentence; don't repeat whole records back. Use simple Markdown (bold, lists) only when it helps.
+- Share links: share_link gives a view-only link to a set list, playlist or trick that Jon can send to an assistant or crew. Viewers see the running order, timings, notes, props, reset, photos and music cues, never methods, costs or private trick notes. Only make or turn off a link when Jon asks.
 - Methods are Jon's private notes: discuss them freely with him, but never write them anywhere public.`;
 
 const strProp = (description: string) => ({ type: "string", description });
@@ -158,6 +160,19 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     },
   },
   {
+    name: "share_link",
+    description: "Turn on (or look up) the view-only share link for a set list, playlist or trick, or turn it off. Returns the link.",
+    input_schema: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: [...shares.KINDS] },
+        id: { type: "string" },
+        off: { type: "boolean", description: "true to turn the link off" },
+      },
+      required: ["kind", "id"],
+    },
+  },
+  {
     name: "delete_playlist",
     description: "Permanently delete a playlist. Only after Jon confirms.",
     input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
@@ -176,7 +191,7 @@ function summary(t: data.Trick) {
 const idOf = (input: Json) => (typeof input.id === "string" && input.id ? input.id : undefined);
 
 /** Runs one tool. Returns the result text, a human summary for the chat, and which lists changed. */
-async function runTool(env: Env, name: string, input: Json): Promise<{ result: string; step?: string; changed?: string }> {
+async function runTool(env: Env, origin: string, name: string, input: Json): Promise<{ result: string; step?: string; changed?: string }> {
   switch (name) {
     case "search_tricks": {
       const q = typeof input.query === "string" ? input.query.toLowerCase().trim() : "";
@@ -208,6 +223,7 @@ async function runTool(env: Env, name: string, input: Json): Promise<{ result: s
     case "delete_trick": {
       const t = await data.getTrick(env, String(input.id));
       if (!t || !(await data.deleteTrick(env, t.id))) return { result: "No trick with that id." };
+      await shares.deleteShare(env, "trick", t.id);
       return { result: "Deleted.", step: `Deleted trick “${t.name}”`, changed: "tricks" };
     }
     case "list_setlists": {
@@ -233,6 +249,7 @@ async function runTool(env: Env, name: string, input: Json): Promise<{ result: s
     case "delete_setlist": {
       const s = await data.getSetlist(env, String(input.id));
       if (!s || !(await data.deleteSetlist(env, s.id))) return { result: "No set list with that id." };
+      await shares.deleteShare(env, "setlist", s.id);
       return { result: "Deleted.", step: `Deleted set list “${s.name}”`, changed: "setlists" };
     }
     case "list_playlists":
@@ -247,7 +264,19 @@ async function runTool(env: Env, name: string, input: Json): Promise<{ result: s
     case "delete_playlist": {
       const p = await data.getPlaylist(env, String(input.id));
       if (!p || !(await data.deletePlaylist(env, p.id))) return { result: "No playlist with that id." };
+      await shares.deleteShare(env, "playlist", p.id);
       return { result: "Deleted.", step: `Deleted playlist “${p.name}”`, changed: "playlists" };
+    }
+    case "share_link": {
+      const kind = String(input.kind) as shares.Kind;
+      if (!shares.KINDS.includes(kind)) return { result: "kind must be setlist, playlist or trick." };
+      const id = String(input.id);
+      if (input.off === true) {
+        await shares.deleteShare(env, kind, id);
+        return { result: "Link turned off.", step: `Turned off a share link`, changed: "shares" };
+      }
+      const share = await shares.createShare(env, kind, id);
+      return { result: JSON.stringify({ url: shares.shareUrl(origin, share.token) }), step: `Share link ready`, changed: "shares" };
     }
     default:
       return { result: `Unknown tool ${name}.` };
@@ -281,6 +310,7 @@ const MAX_VISION_BYTES = 5 * 1024 * 1024; // Claude's per-image limit
 export function streamReply(
   env: Env,
   waitUntil: (p: Promise<unknown>) => void,
+  origin: string,
   chatId: string,
   text: string,
   imageKeys: string[],
@@ -370,7 +400,7 @@ export function streamReply(
         const changed = new Set<string>();
         for (const use of toolUses) {
           try {
-            const out = await runTool(env, use.name, (use.input ?? {}) as Json);
+            const out = await runTool(env, origin, use.name, (use.input ?? {}) as Json);
             results.push({ type: "tool_result", tool_use_id: use.id, content: out.result });
             if (out.step) {
               steps.push(out.step);

@@ -27,3 +27,11 @@ test("source files are not served", async ({ request }) => {
     expect((await request.get(path)).status(), path).toBe(404);
   }
 });
+
+test("a share link that doesn't exist says so", async ({ page, request }) => {
+  expect((await request.get("/api/shared/AAAAAAAAAAAAAAAAAAAAAAAA")).status()).toBe(404);
+  expect((await request.get("/api/shares/setlist/x")).status()).toBe(401);
+  await page.goto("/share/AAAAAAAAAAAAAAAAAAAAAAAA");
+  await expect(page.getByRole("heading", { name: "Not available" })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+});

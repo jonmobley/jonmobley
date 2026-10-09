@@ -1,0 +1,2 @@
+# View-only share links from /backstage: /share/<token> shows the share page.
+/share/:token  /share/  200

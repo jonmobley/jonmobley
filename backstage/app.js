@@ -159,6 +159,7 @@ const PATHS = {
   chat: "M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5h.5a8.5 8.5 0 0 1 8 8z",
   wand: "M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M15 9h.01M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5",
   file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",
+  share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13",
 };
 const Icon = ({ name, size }) =>
   html`<svg class="i" viewBox="0 0 24 24" style=${size ? `width:${size}px;height:${size}px` : ""} aria-hidden="true"><path d=${PATHS[name]} /></svg>`;
@@ -291,7 +292,7 @@ function Backstage({ onOut }) {
           <button class=${`tab pane-switch ${pane === "chat" ? "on" : ""}`} onClick=${() => setPane("chat")}>Chat</button>
         </nav>
         <div class="spacer"></div>
-        <a class="ghost" href="/" target="_blank" rel="noopener"><${Icon} name="external" /><span class="word">View site</span></a>
+        <a class="ghost view-site" href="/" target="_blank" rel="noopener"><${Icon} name="external" /><span class="word">View site</span></a>
         <button class="ghost" onClick=${() => setSettings(true)} aria-label="Settings"><${Icon} name="settings" /><span class="word">Settings</span></button>
       </header>
       <main class=${`split ${pane === "chat" ? "show-chat" : pane === "lib" ? "show-lib" : ""}`}>
@@ -456,10 +457,89 @@ function useLeaveGuard(dirty) {
 
 function BackBar({ to, label, children }) {
   return html`<div class="bar">
-    <button class="ghost" onClick=${() => go(to)}><${Icon} name="back" />${label}</button>
+    <button class="ghost" onClick=${() => go(to)} aria-label=${`Back to ${label}`}><${Icon} name="back" /><span class="back-word">${label}</span></button>
     <div class="grow"></div>
     ${children}
   </div>`;
+}
+
+// ---------- share links ----------
+
+const SHARE_WHAT = {
+  setlist: "the running order, timings, notes, each trick's props, reset and photos, a packing checklist, and any playlist linked to this set",
+  playlist: "the tracks, cues, links and uploaded audio",
+  trick: "the name, photos, what the audience sees, props, reset and where it lives",
+};
+
+function ShareButton({ kind, item, isNew, ctx }) {
+  const [open, setOpen] = useState(false);
+  if (isNew || item.demo) return null;
+  return html`
+    <button class="btn" onClick=${() => setOpen(true)}><${Icon} name="share" />Share</button>
+    ${open && html`<${ShareDialog} kind=${kind} item=${item} ctx=${ctx} onClose=${() => setOpen(false)} />`}`;
+}
+
+function ShareDialog({ kind, item, ctx, onClose }) {
+  const [link, setLink] = useState(undefined); // undefined = loading, null = off
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const path = `shares/${kind}/${item.id}`;
+  useEffect(() => { api(path).then(setLink).catch((e) => setErr(e.message)); }, []);
+  const act = async (method) => {
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await api(path, { method });
+      setLink(method === "DELETE" ? null : r);
+      if (method === "DELETE") ctx.setToast("Link turned off");
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy(false);
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link.url);
+      ctx.setToast("Link copied");
+    } catch {
+      ctx.setToast("Couldn't copy. Press and hold the link to copy it.");
+    }
+  };
+  const canShare = typeof navigator.share === "function";
+  return html`<div class="modal-wrap" onClick=${(e) => e.target === e.currentTarget && onClose()}>
+    <div class="modal" role="dialog" aria-label="Share">
+      <h2>Share “${item.name}”</h2>
+      <p class="modal-p">Anyone with the link can view ${SHARE_WHAT[kind]}. They can't change anything. Methods, costs and your private notes are never shared.</p>
+      ${link === undefined && !err && html`<p class="modal-p">Loading…</p>`}
+      ${link === null && html`<div class="acts"><button class="btn" onClick=${onClose}>Cancel</button><button class="btn primary" disabled=${busy} onClick=${() => act("POST")}><${Icon} name="link" />Create link</button></div>`}
+      ${link && html`
+        <input class="input" readonly value=${link.url} onFocus=${(e) => e.target.select()} aria-label="Share link" />
+        <div class="acts share-acts">
+          <button class="btn danger" disabled=${busy} onClick=${() => confirm("Turn off this link? Anyone who has it won't be able to open it.") && act("DELETE")}>Turn off link</button>
+          <div style="flex:1"></div>
+          <a class="btn" href=${link.url} target="_blank" rel="noopener"><${Icon} name="external" />Open</a>
+          ${canShare
+            ? html`<button class="btn primary" onClick=${() => navigator.share({ title: item.name, url: link.url }).catch(() => {})}><${Icon} name="share" />Send</button>`
+            : html`<button class="btn primary" onClick=${copy}>Copy link</button>`}
+        </div>
+        ${canShare && html`<button class="link-btn" onClick=${copy}>Copy link instead</button>`}`}
+      ${err && html`<div class="msg-err">${err}</div>`}
+    </div>
+  </div>`;
+}
+
+// The big name at the top of an editor: wraps onto more lines instead of cutting off long names.
+function TitleInput({ value, onInput, placeholder, autofocus }) {
+  const ref = useRef();
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    if (el.scrollHeight) el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return html`<textarea ref=${ref} class="title-input" rows="1" placeholder=${placeholder} value=${value} autofocus=${autofocus}
+    onInput=${(e) => onInput(e.target.value.replace(/\n/g, " "))}
+    onKeyDown=${(e) => e.key === "Enter" && e.preventDefault()}></textarea>`;
 }
 
 function Field({ label, children }) {
@@ -552,10 +632,12 @@ function TrickEditor({ id, ctx }) {
   const usedIn = (ctx.setlists || []).filter((s) => s.items.some((i) => i.trick_id === id));
 
   return html`
-    <${BackBar} to="tricks" label="Tricks" />
+    <${BackBar} to="tricks" label="Tricks">
+      <${ShareButton} kind="trick" item=${draft} isNew=${isNew} ctx=${ctx} />
+    <//>
     <div class="scroll pad">
       <div class="editor">
-        <input class="title-input" placeholder="Trick name" value=${draft.name} onInput=${(e) => set({ name: e.target.value })} autofocus=${isNew} />
+        <${TitleInput} placeholder="Trick name" value=${draft.name} onInput=${(v) => set({ name: v })} autofocus=${isNew} />
         <div class="cols">
           <${Field} label="STATUS">
             <select class="select" value=${draft.status} onChange=${(e) => set({ status: e.target.value })}>
@@ -701,11 +783,12 @@ function SetlistEditor({ id, ctx }) {
 
   return html`
     <${BackBar} to="sets" label="Set lists">
-      <button class="btn" disabled=${!items.length} onClick=${openShow}><${Icon} name="play" />Show mode</button>
+      <${ShareButton} kind="setlist" item=${draft} isNew=${isNew} ctx=${ctx} />
+      <button class="btn" disabled=${!items.length} onClick=${openShow}><${Icon} name="play" />Show<span class="hide-sm"> mode</span></button>
     <//>
     <div class="scroll pad">
       <div class="editor">
-        <input class="title-input" placeholder="Set list name" value=${draft.name} onInput=${(e) => set({ name: e.target.value })} autofocus=${isNew} />
+        <${TitleInput} placeholder="Set list name" value=${draft.name} onInput=${(v) => set({ name: v })} autofocus=${isNew} />
         <div class="cols">
           <${Field} label="EVENT"><${Text} value=${draft.event} placeholder="Acme holiday party" onInput=${(v) => set({ event: v })} /><//>
           <${Field} label="VENUE"><${Text} value=${draft.venue} onInput=${(v) => set({ venue: v })} /><//>
@@ -814,10 +897,12 @@ function PlaylistEditor({ id, ctx }) {
   const secs = tracks.reduce((n, t) => n + (t.duration_sec || 0), 0);
 
   return html`
-    <${BackBar} to="playlists" label="Playlists" />
+    <${BackBar} to="playlists" label="Playlists">
+      <${ShareButton} kind="playlist" item=${draft} isNew=${isNew} ctx=${ctx} />
+    <//>
     <div class="scroll pad">
       <div class="editor">
-        <input class="title-input" placeholder="Playlist name" value=${draft.name} onInput=${(e) => set({ name: e.target.value })} autofocus=${isNew} />
+        <${TitleInput} placeholder="Playlist name" value=${draft.name} onInput=${(v) => set({ name: v })} autofocus=${isNew} />
         <div class="cols">
           <${Field} label="FOR SET LIST">
             <select class="select" value=${draft.setlist_id || ""} onChange=${(e) => set({ setlist_id: e.target.value || null })}>
@@ -838,8 +923,8 @@ function PlaylistEditor({ id, ctx }) {
               <div class="num">${i + 1}</div>
               <div class="body">
                 <div class="line">
-                  <input class="input" style="flex:2;min-width:140px" placeholder="Title" value=${t.title} onInput=${(e) => upd(i, { title: e.target.value })} />
-                  <input class="input" style="flex:1;min-width:110px" placeholder="Artist" value=${t.artist || ""} onInput=${(e) => upd(i, { artist: e.target.value })} />
+                  <input class="input t-title" style="flex:2;min-width:140px" placeholder="Title" value=${t.title} onInput=${(e) => upd(i, { title: e.target.value })} />
+                  <input class="input t-artist" style="flex:1;min-width:110px" placeholder="Artist" value=${t.artist || ""} onInput=${(e) => upd(i, { artist: e.target.value })} />
                   <input class="input mins" placeholder="3:20" aria-label="Length" value=${fmtSec(t.duration_sec)} onChange=${(e) => upd(i, { duration_sec: parseSec(e.target.value) })} />
                 </div>
                 <div class="line">
@@ -1095,6 +1180,7 @@ function Settings({ onClose, onOut }) {
       ${msg && html`<div class=${msg.ok ? "msg-ok" : "msg-err"}>${msg.text}</div>`}
       <div class="acts">
         <button type="button" class="btn" onClick=${signOut}>Sign out</button>
+        <a class="btn" href="/" target="_blank" rel="noopener">View site</a>
         <div style="flex:1"></div>
         <button type="button" class="btn" onClick=${onClose}>Close</button>
         <button class="btn primary" disabled=${busy || !current || next.length < 10}>Change password</button>

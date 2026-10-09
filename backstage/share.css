@@ -1,0 +1,72 @@
+/* The view-only share page. Same dark tokens as Backstage, built phone-first. */
+:root {
+  --bg: #171717; --panel: #212121; --card: #262626; --line: #333; --ink: #ececec; --muted: #a3a3a3;
+  --gold: #c9a669; --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+:focus, :focus-visible { outline: none !important; }
+* { -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+img { display: block; max-width: 100%; }
+.wrap { max-width: 720px; margin: 0 auto; padding: max(14px, env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom)); }
+.top { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; font-size: 14px; }
+.badge { width: 26px; height: 26px; border-radius: 7px; background: var(--gold); color: #1a1408; display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.grow { flex: 1; min-width: 0; }
+.muted { color: var(--muted); }
+.tab { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.btn { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 14px; font-weight: 500; color: var(--ink); text-decoration: none; }
+.link { color: var(--gold); font-size: 14px; }
+
+.hero h1 { font-size: 30px; line-height: 1.15; margin: 0 0 6px; letter-spacing: -.01em; }
+.hero .meta { margin: 0; color: var(--muted); }
+.hero { margin-bottom: 22px; }
+section { margin-top: 28px; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+.sec-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.sec-head h2 { margin: 0; flex: 1; }
+h3 { font-size: 16px; margin: 0 0 6px; }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+.notes p { margin: 0; white-space: pre-wrap; }
+ol { list-style: none; margin: 0; padding: 0; }
+.order .card { padding: 0; }
+.row1 { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px; font-size: 17px; }
+.n { color: var(--gold); font-weight: 600; width: 22px; flex: none; font-variant-numeric: tabular-nums; }
+.chev { color: var(--muted); font-size: 12px; }
+.spot { margin: -6px 14px 12px 48px; color: #d4d4d4; font-size: 15px; white-space: pre-wrap; }
+.more { padding: 0 14px 14px 48px; display: flex; flex-direction: column; gap: 10px; }
+.detail span { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+.detail p { margin: 2px 0 0; white-space: pre-wrap; }
+.card > .detail + .detail { margin-top: 12px; }
+.photos { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 10px; }
+.photos img { height: 120px; width: auto; border-radius: 10px; border: 1px solid var(--line); }
+
+.check { display: flex; gap: 12px; align-items: flex-start; padding: 10px 2px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.check:last-child { border-bottom: 0; }
+.check input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--gold); flex: none; }
+.check.done > span { color: var(--muted); text-decoration: line-through; }
+
+.tracks li { padding: 12px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.tracks li:first-child { border-top: 0; }
+.tracks .row1 { padding: 0; font-size: 16px; }
+.cue { margin-left: 34px; color: #d4d4d4; font-size: 15px; }
+.tracks audio, .tracks .btn { margin-left: 34px; }
+.tracks audio { width: calc(100% - 34px); height: 40px; }
+.tracks .btn { align-self: flex-start; }
+.card-head { margin-bottom: 6px; }
+.card-head p { margin: 0; font-size: 14px; }
+
+.empty { text-align: center; padding: 80px 10px; }
+.empty h1 { font-size: 22px; margin: 0 0 8px; }
+.empty p { color: var(--muted); margin: 0; }
+
+@media print {
+  body { background: #fff; color: #000; }
+  .top .btn, audio, .tracks .btn, .chev { display: none; }
+  .card { background: #fff; border-color: #ccc; break-inside: avoid; }
+  .muted, .hero .meta, .spot, .cue, h2 { color: #444; }
+  .n { color: #000; }
+}

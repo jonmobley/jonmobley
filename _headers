@@ -17,3 +17,10 @@
 
 https://:project.pages.dev/*
   X-Robots-Tag: noindex
+
+/backstage/*
+  X-Robots-Tag: noindex, nofollow
+
+/share/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer

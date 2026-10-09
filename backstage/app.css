@@ -76,6 +76,7 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
   border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 14px; font-weight: 500;
   white-space: nowrap;
 }
+.btn { text-decoration: none; color: var(--ink); }
 .btn:hover { background: var(--card-hover); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.primary:hover { background: var(--accent-strong); }
@@ -163,8 +164,10 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
 /* ---------- editors ---------- */
 .editor { max-width: 860px; display: flex; flex-direction: column; gap: 22px; }
 .editor .title-input {
-  font-size: 26px; font-weight: 600; background: none; border: 0; padding: 0; width: 100%; border-bottom: 1px solid transparent;
+  font-size: 26px; font-weight: 600; line-height: 1.25; background: none; border: 0; padding: 0; width: 100%; resize: none; overflow: hidden; display: block;
 }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
 .section { display: flex; flex-direction: column; gap: 12px; }
 .section > h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 6px 0 0; font-weight: 600; }
@@ -300,6 +303,8 @@ audio { width: 100%; height: 36px; }
 .modal-wrap .login { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
 .modal { width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
 .modal h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.modal-p { margin: 0; color: var(--muted); font-size: 14px; }
+.link-btn { color: var(--muted); font-size: 13px; text-decoration: underline; align-self: center; }
 .modal .acts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .modal .msg-ok { color: #86efac; font-size: 14px; }
 .modal .msg-err { color: #fca5a5; font-size: 14px; }
@@ -333,8 +338,36 @@ audio { width: 100%; height: 36px; }
   .linkrow .label { grid-column: 1 / -1; }
   .show li { font-size: 21px; grid-template-columns: 40px 1fr auto; }
 }
+@media (max-width: 900px) {
+  /* 16px stops iPhone zooming in when a box is tapped. */
+  .input, .textarea, .select, .search input, .composer textarea, .taglist input, .item .line .input, .menu input { font-size: 16px; }
+  .cols { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .editor { gap: 18px; }
+  .editor .title-input { font-size: 23px; }
+  /* Running order / tracks: no drag handle on touch, arrows stacked so the boxes get the width. */
+  .item { grid-template-columns: 20px 1fr 34px; gap: 6px; padding: 10px 6px 10px 8px; }
+  .item .grip { display: none; }
+  .item .num { height: 38px; }
+  .item .acts { flex-direction: column; }
+  .item .line .input { min-width: 0 !important; }
+  .foot { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .foot .note { font-size: 12px; }
+  .modal { padding: 18px; }
+  .item .line .t-title { flex-basis: 100% !important; }
+  .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 360px) {
+  .top { gap: 2px; padding: 0 6px 0 10px; }
+  .top .badge, .top .view-site { display: none; }
+  .tabs { margin-left: 0; }
+  .tab { padding: 5px 9px; }
+  .back-word { display: none; }
+}
 @media (max-width: 420px) {
   .tabs .tab .long { display: none; }
+  .hide-sm { display: none; }
+  .foot .btn.danger { padding: 0 12px; }
+  .item .line .input:not(.mins):not(.t-artist), .item .line .select { flex: 1 1 100% !important; }
 }
 
 @media print {

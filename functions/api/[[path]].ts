@@ -3,6 +3,7 @@ import type { Env } from "../../server/env";
 import * as auth from "../../server/auth";
 import * as data from "../../server/data";
 import * as chat from "../../server/chat";
+import * as shares from "../../server/shares";
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -10,6 +11,9 @@ const json = (body: unknown, status = 200, headers: Record<string, string> = {})
     headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers },
   });
 const fail = (error: string, status = 400) => json({ error }, status);
+// The live site is https, where the cookie is Secure. Local http previews (Safari) drop Secure cookies.
+const cookieFor = (request: Request, cookie: string) =>
+  new URL(request.url).protocol === "https:" ? cookie : cookie.replace("; Secure", "");
 
 async function body(request: Request): Promise<Record<string, unknown>> {
   try {
@@ -27,6 +31,8 @@ const collections = {
   playlists: { list: data.listPlaylists, get: data.getPlaylist, save: data.savePlaylist, remove: data.deletePlaylist },
 } as const;
 
+const SHARE_KIND = { tricks: "trick", setlists: "setlist", playlists: "playlist" } as const;
+
 async function collection(request: Request, env: Env, name: keyof typeof collections, id?: string): Promise<Response> {
   const c = collections[name];
   const m = request.method;
@@ -37,11 +43,15 @@ async function collection(request: Request, env: Env, name: keyof typeof collect
     return item ? json(item) : fail("Not found.", 404);
   }
   if (id && m === "PUT") return json(await c.save(env, await body(request), id));
-  if (id && m === "DELETE") return (await c.remove(env, id)) ? json({ ok: true }) : fail("Not found.", 404);
+  if (id && m === "DELETE") {
+    if (!(await c.remove(env, id))) return fail("Not found.", 404);
+    await shares.deleteShare(env, SHARE_KIND[name], id);
+    return json({ ok: true });
+  }
   return fail("Not allowed.", 405);
 }
 
-async function media(request: Request, env: Env, key: string): Promise<Response> {
+async function media(request: Request, env: Env, key: string, cache = "private, max-age=31536000, immutable"): Promise<Response> {
   const range = request.headers.get("Range");
   const obj = await env.MEDIA.get(key, range ? { range: request.headers } : undefined);
   if (!obj) return fail("Not found.", 404);
@@ -49,7 +59,7 @@ async function media(request: Request, env: Env, key: string): Promise<Response>
   obj.writeHttpMetadata(headers);
   headers.set("ETag", obj.httpEtag);
   headers.set("Accept-Ranges", "bytes");
-  headers.set("Cache-Control", "private, max-age=31536000, immutable");
+  headers.set("Cache-Control", cache);
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
   const name = obj.customMetadata?.name;
@@ -75,6 +85,17 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
       return json({ signedIn: await auth.isSignedIn(request, env), passwordSet: await auth.hasPassword(env) });
     }
 
+    // Share links: view-only, no sign-in. /api/shared/<token> and /api/shared/<token>/media/<file>
+    if (section === "shared" && id && method === "GET") {
+      const view = await shares.sharedView(env, id);
+      if (!view) return fail("This link has been turned off.", 404);
+      if (!sub) return json({ kind: view.kind, data: view.data });
+      const file = parts[3];
+      const key = `media/${file}`;
+      if (sub !== "media" || !file || !view.media.includes(key)) return fail("Not found.", 404);
+      return await media(request, env, key, "private, max-age=300");
+    }
+
     // Writes must come from our own page (blocks cross-site form posts).
     if (method !== "GET" && method !== "HEAD" && request.headers.get("X-Backstage") !== "1") {
       return fail("Missing request header.", 403);
@@ -84,10 +105,10 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
       const { password } = await body(request);
       const result = await auth.login(request, env, typeof password === "string" ? password : "");
       if ("error" in result) return fail(result.error, result.status);
-      return json({ ok: true }, 200, { "Set-Cookie": result.cookie });
+      return json({ ok: true }, 200, { "Set-Cookie": cookieFor(request, result.cookie) });
     }
     if (section === "logout" && method === "POST") {
-      return json({ ok: true }, 200, { "Set-Cookie": auth.clearCookie() });
+      return json({ ok: true }, 200, { "Set-Cookie": cookieFor(request, auth.clearCookie()) });
     }
 
     if (!(await auth.isSignedIn(request, env))) return fail("Please sign in.", 401);
@@ -98,7 +119,21 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
         const b = await body(request);
         const result = await auth.changePassword(env, String(b.current ?? ""), String(b.next ?? ""));
         if ("error" in result) return fail(result.error);
-        return json({ ok: true }, 200, { "Set-Cookie": result.cookie });
+        return json({ ok: true }, 200, { "Set-Cookie": cookieFor(request, result.cookie) });
+      }
+      case "shares": {
+        // /api/shares/<kind>/<item id>: GET the link (or null), POST to turn it on, DELETE to turn it off.
+        const kind = id as shares.Kind;
+        if (!shares.KINDS.includes(kind) || !sub) break;
+        const origin = new URL(request.url).origin;
+        const out = (s: shares.Share | null) => json(s ? { url: shares.shareUrl(origin, s.token), created_at: s.created_at } : null);
+        if (method === "GET") return out(await shares.getShare(env, kind, sub));
+        if (method === "POST") return out(await shares.createShare(env, kind, sub));
+        if (method === "DELETE") {
+          await shares.deleteShare(env, kind, sub);
+          return json({ ok: true });
+        }
+        break;
       }
       case "tricks":
       case "setlists":
@@ -145,7 +180,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
             : [];
           if (!text && !images.length) return fail("Type a message first.");
           const today = typeof b.today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.today) ? b.today : new Date().toISOString().slice(0, 10);
-          return chat.streamReply(env, waitUntil, id, text, images, today);
+          return chat.streamReply(env, waitUntil, new URL(request.url).origin, id, text, images, today);
         }
         break;
       }
