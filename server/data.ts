@@ -564,7 +564,10 @@ export async function deleteFile(env: Env, id: string): Promise<boolean> {
 
 // ---------- links ----------
 
-export interface QuickLink { id: string; title: string; url: string; note: string; folder: string; pinned: boolean; created_at: number; updated_at: number }
+export interface QuickLink {
+  id: string; title: string; url: string; note: string; folder: string; pinned: boolean;
+  image_key: string; image_kind: string; created_at: number; updated_at: number;
+}
 
 const rowToLink = (r: Json): QuickLink => ({ ...(r as unknown as QuickLink), pinned: !!r.pinned });
 
@@ -583,10 +586,11 @@ export async function saveLink(env: Env, input: Json, id?: string): Promise<Quic
   if (id && !existing) throw new InputError("That link doesn't exist.");
   const has = (k: string) => Object.prototype.hasOwnProperty.call(input, k);
   const now = Date.now();
-  const l: QuickLink = { ...(existing ?? { id: newId(), title: "", url: "", note: "", folder: "", pinned: false, created_at: now }), updated_at: now } as QuickLink;
+  const l: QuickLink = { ...(existing ?? { id: newId(), title: "", url: "", note: "", folder: "", pinned: false, image_key: "", image_kind: "", created_at: now }), updated_at: now } as QuickLink;
   if (has("url")) {
     const url = safeUrl(input.url);
     if (!url) throw new InputError("That doesn't look like a web address.");
+    if (url !== l.url) l.image_kind = ""; // new address → capture a new thumbnail
     l.url = url;
   }
   if (has("title")) l.title = str(input.title, 200);
@@ -596,15 +600,17 @@ export async function saveLink(env: Env, input: Json, id?: string): Promise<Quic
   if (!l.url) throw new InputError("A link needs a web address.");
   if (!l.title) l.title = new URL(l.url).hostname.replace(/^www\./, "");
   await env.DB.prepare(
-    `INSERT INTO links (id, title, url, note, folder, pinned, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-     ON CONFLICT(id) DO UPDATE SET title=?2, url=?3, note=?4, folder=?5, pinned=?6, updated_at=?8`,
+    `INSERT INTO links (id, title, url, note, folder, pinned, created_at, updated_at, image_kind) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+     ON CONFLICT(id) DO UPDATE SET title=?2, url=?3, note=?4, folder=?5, pinned=?6, updated_at=?8, image_kind=?9`,
   )
-    .bind(l.id, l.title, l.url, l.note, l.folder, l.pinned ? 1 : 0, l.created_at, l.updated_at)
+    .bind(l.id, l.title, l.url, l.note, l.folder, l.pinned ? 1 : 0, l.created_at, l.updated_at, l.image_kind)
     .run();
   return l;
 }
 
 export async function deleteLink(env: Env, id: string): Promise<boolean> {
+  const old = await getLink(env, id);
+  if (old?.image_key) await env.MEDIA.delete(old.image_key);
   const r = await env.DB.prepare("DELETE FROM links WHERE id = ?").bind(id).run();
   return r.meta.changes > 0;
 }

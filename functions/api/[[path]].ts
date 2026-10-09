@@ -4,6 +4,7 @@ import * as auth from "../../server/auth";
 import * as data from "../../server/data";
 import * as chat from "../../server/chat";
 import * as shares from "../../server/shares";
+import { refreshLinkImage } from "../../server/linkPreview";
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -142,6 +143,21 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
         }
         break;
       }
+      case "links": {
+        // Thumbnails are captured in the background after a save, or on request.
+        if (id && sub === "thumbnail" && method === "POST") {
+          if (!(await data.getLink(env, id))) return fail("Not found.", 404);
+          await env.DB.prepare("UPDATE links SET image_kind = '' WHERE id = ?").bind(id).run();
+          waitUntil(refreshLinkImage(env, id));
+          return json({ ok: true });
+        }
+        const res = await collection(request, env, "links", id);
+        if (res.ok) {
+          const pending = (await data.listLinks(env)).filter((l) => l.image_kind === "").slice(0, 3);
+          for (const l of pending) waitUntil(refreshLinkImage(env, l.id));
+        }
+        return res;
+      }
       case "tricks":
       case "setlists":
       case "playlists":
@@ -149,7 +165,6 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
       case "notes":
       case "equipment":
       case "files":
-      case "links":
         return await collection(request, env, section, id);
       case "media": {
         if (method === "POST" && !id) {

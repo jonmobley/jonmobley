@@ -1871,6 +1871,12 @@ function LinkForm({ ctx, link, onDone }) {
     ${err && html`<div class="msg-err">${err}</div>`}
     <div class="task-acts">
       ${link && html`<button type="button" class="btn danger" onClick=${remove}><${Icon} name="trash" />Delete</button>`}
+      ${link && html`<button type="button" class="btn" onClick=${async () => {
+        await api(`links/${link.id}/thumbnail`, { method: "POST" }).catch((e2) => ctx.setToast(e2.message));
+        ctx.setToast("Getting a fresh preview…");
+        await ctx.load(["links"]);
+        onDone();
+      }}>New preview</button>`}
       <div style="flex:1"></div>
       <button type="button" class="btn" onClick=${onDone}>Cancel</button>
       <button class="btn primary" disabled=${!form.url.trim()}>${link ? "Save" : "Add link"}</button>
@@ -1883,6 +1889,13 @@ function LinksPage({ ctx }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);
   const { links } = ctx;
+  const capturing = (ctx.real.links || []).some((l) => l.image_kind === "" || l.image_kind === "working");
+  useEffect(() => {
+    if (!capturing) return;
+    let tries = 0;
+    const t = setInterval(() => { if (++tries > 15) clearInterval(t); else ctx.load(["links"]); }, 4000);
+    return () => clearInterval(t);
+  }, [capturing]);
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = (links || []).filter((l) => words.every((w) => `${l.title} ${l.url} ${l.folder} ${l.note}`.toLowerCase().includes(w)));
   const groups = [];
@@ -1910,12 +1923,22 @@ function LinksPage({ ctx }) {
           <div class="link-grid">
             ${items.map((l) => editing === l.id
               ? html`<div class="link-edit-wrap"><${LinkForm} ctx=${ctx} link=${l} onDone=${() => setEditing(null)} /></div>`
-              : html`<div class="link-tile">
-                  <a href=${l.url} target="_blank" rel="noopener noreferrer" class="lt-main">
-                    <span class="lt-av" style=${`background:hsl(${avatarHue(linkHost(l.url))} 45% 32%)`}>${(l.title[0] || "?").toUpperCase()}</span>
-                    <span class="lt-txt"><span class="name">${l.title} <${SampleTag} item=${l} /></span><span class="sub">${l.note || linkHost(l.url)}</span></span>
+              : html`<div class="link-card">
+                  <a href=${l.url} target="_blank" rel="noopener noreferrer" class="lc-shot" aria-label=${`Open ${l.title}`}>
+                    ${l.image_key && (l.image_kind === "screenshot" || l.image_kind === "preview")
+                      ? html`<img src=${mediaUrl(l.image_key)} alt="" loading="lazy" />`
+                      : l.image_key && l.image_kind === "icon"
+                        ? html`<span class="lc-icon"><img src=${mediaUrl(l.image_key)} alt="" loading="lazy" /></span>`
+                        : html`<span class="lc-letter" style=${`background:hsl(${avatarHue(linkHost(l.url))} 45% 26%)`}>
+                            ${(l.title[0] || "?").toUpperCase()}${!l.demo && (l.image_kind === "" || l.image_kind === "working") ? html`<small>Getting preview…</small>` : null}
+                          </span>`}
                   </a>
-                  ${!l.demo && html`<button class="icon-btn" aria-label=${`Edit ${l.title}`} onClick=${() => { setEditing(l.id); setAdding(false); }}><${Icon} name="edit" /></button>`}
+                  <div class="lc-meta">
+                    <a href=${l.url} target="_blank" rel="noopener noreferrer" class="lt-txt">
+                      <span class="name">${l.title} <${SampleTag} item=${l} /></span><span class="sub">${l.note || linkHost(l.url)}</span>
+                    </a>
+                    ${!l.demo && html`<button class="icon-btn" aria-label=${`Edit ${l.title}`} onClick=${() => { setEditing(l.id); setAdding(false); }}><${Icon} name="edit" /></button>`}
+                  </div>
                 </div>`)}
           </div>
         </div>`)}
