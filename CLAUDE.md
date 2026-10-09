@@ -19,6 +19,7 @@ Public site: plain HTML, CSS and JS, no build step. Plus **/backstage**: Jon's p
 - Data: D1 `jonmobley-backstage` (binding `DB`, schema in `migrations/`), R2 `jonmobley-backstage` (binding `MEDIA`: `media/<uuid>.<ext>` uploads, `chats/`). Config in `wrangler.toml`.
 - Secrets: `ANTHROPIC_API_KEY` (Pages secret, production + preview; source: `op://Moxie/newapp/LLM_API_KEY`). Reset the password: `node scripts/set-password.mjs --remote`.
 - Writes need the `X-Backstage: 1` header (CSRF guard); everything but session/login needs the cookie.
+- Tricks page: grid/list toggle (remembered per device), status chips + category and tag filters. Trick fields include price (`cost` column) and `purchase_url` (migration 0003); both private, never in share links.
 - Samples: `backstage/demo.js` shows sample tricks/set list/playlist while a section is empty (browser only, never stored); "Add to my library" saves a copy via `adopt()`.
 - Share links: `server/shares.ts` + table `shares` (migration 0002). `/share/<token>` (rewritten by `_redirects` to `share/index.html`, script `backstage/share.js`) shows a view-only copy; `/api/shared/<token>` serves it with no sign-in and only the files that item uses. Never include method, cost, source, notes or links of a trick in a shared view. Deleting an item deletes its link.
 - Reordering (set lists, playlist tracks): `useReorder` in app.js uses pointer events on the handle (works with fingers; HTML5 drag doesn't on iPhone); rows fold to one line while dragging; up/down buttons remain.

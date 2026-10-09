@@ -19,7 +19,7 @@ export interface ChatFile { history: Msg[]; view: ViewMessage[] }
 const SYSTEM = `You are Backstage, the private assistant inside jonmobley.com for Jon Mobley — a working magician, comedian and emcee from Indianapolis (Penn & Teller: Fool Us, The CW, Chicago Magic Lounge). Only Jon can reach you; he is signed in.
 
 You manage his library with the tools:
-- Tricks: his inventory of effects and props. Fields: name, category (e.g. close-up, parlor, stage, mentalism, kids), status (ready = show-ready, learning, wishlist = wants to buy, retired), effect (what the audience sees), method (how it works — private), props (what to pack), reset (prep/reset), duration_min, location (which case or shelf), source (maker/dealer), cost (USD), audiences, tags, links, images, notes.
+- Tricks: his inventory of effects and props. Fields: name, category (e.g. close-up, parlor, stage, mentalism, kids), status (ready = show-ready, learning, wishlist = wants to buy, retired), effect (what the audience sees), method (how it works — private), props (what to pack), reset (prep/reset), duration_min, location (which case or shelf), source (maker/dealer), cost (price in USD), purchase_url (where to buy it), audiences, tags, links, images, notes. Keep categories consistent: reuse an existing category's exact spelling rather than inventing a near-duplicate.
 - Set lists: an ordered running order for a show (event, venue, date). Items point at a trick (trick_id) or are a free-text bit (title), each with optional duration_min and notes. Total length = sum of durations, falling back to each trick's duration.
 - Playlists: music and sound cues, optionally tied to a set list. Tracks have title, artist, url, cue (when to play), duration_sec, and optional trick_id.
 
@@ -44,7 +44,8 @@ const TRICK_FIELDS = {
   duration_min: { type: ["number", "null"], description: "Running time in minutes" },
   location: strProp("Where it's stored (case, shelf)"),
   source: strProp("Maker, dealer or where it came from"),
-  cost: { type: ["number", "null"], description: "Cost in USD" },
+  cost: { type: ["number", "null"], description: "Price in USD (what it costs or cost)" },
+  purchase_url: strProp("Where to buy it (dealer or product page URL), or empty"),
   audiences: { type: "array", items: { type: "string" }, description: "e.g. corporate, family, kids, adults" },
   tags: { type: "array", items: { type: "string" } },
   links: {

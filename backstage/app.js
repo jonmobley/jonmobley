@@ -159,6 +159,8 @@ const PATHS = {
   chat: "M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.4-8.5h.5a8.5 8.5 0 0 1 8 8z",
   wand: "M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M15 9h.01M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5",
   file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",
+  grid: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
+  rows: "M3 5h18M3 12h18M3 19h18",
   share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13",
 };
 const Icon = ({ name, size }) =>
@@ -328,20 +330,38 @@ function SampleNote({ list, what, newPath }) {
 }
 const SampleTag = ({ item }) => (item.demo ? html`<span class="sample-tag">Sample</span>` : null);
 
+const uniqueSorted = (vals) => [...new Set(vals.filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+const money = (n) => (n || n === 0 ? `$${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "");
+
 function TrickList({ ctx }) {
   const [q, setQ] = useState(() => store.get("trick-q") || "");
   const [status, setStatus] = useState(() => store.get("trick-status") || "");
-  useEffect(() => { store.set("trick-q", q || null); store.set("trick-status", status || null); }, [q, status]);
+  const [category, setCategory] = useState(() => store.get("trick-category") || "");
+  const [tag, setTag] = useState(() => store.get("trick-tag") || "");
+  const [view, setView] = useState(() => store.get("trick-view") || "grid");
+  useEffect(() => {
+    store.set("trick-q", q || null);
+    store.set("trick-status", status || null);
+    store.set("trick-category", category || null);
+    store.set("trick-tag", tag || null);
+    store.set("trick-view", view);
+  }, [q, status, category, tag, view]);
   const { tricks } = ctx;
+  const categories = useMemo(() => uniqueSorted((tricks || []).map((t) => t.category)), [tricks]);
+  const tags = useMemo(() => uniqueSorted((tricks || []).flatMap((t) => t.tags)), [tricks]);
   const shown = useMemo(() => {
     if (!tricks) return [];
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     return tricks.filter((t) => {
       if (status && t.status !== status) return false;
+      if (category && t.category.toLowerCase() !== category.toLowerCase()) return false;
+      if (tag && !t.tags.includes(tag)) return false;
       const hay = [t.name, t.category, t.effect, t.props, t.location, t.source, t.notes, ...t.tags, ...t.audiences].join(" ").toLowerCase();
       return words.every((w) => hay.includes(w));
     });
-  }, [tricks, q, status]);
+  }, [tricks, q, status, category, tag]);
+  const filtered = q || status || category || tag;
+  const clear = () => { setQ(""); setStatus(""); setCategory(""); setTag(""); };
 
   return html`
     <div class="bar">
@@ -356,6 +376,23 @@ function TrickList({ ctx }) {
       <div class="grow"></div>
       <button class="btn primary" onClick=${() => go("tricks/new")}><${Icon} name="plus" />New trick</button>
     </div>
+    <div class="filters">
+      <select class=${`select mini ${category ? "set" : ""}`} value=${category} onChange=${(e) => setCategory(e.target.value)} aria-label="Category">
+        <option value="">All categories</option>
+        ${categories.map((c) => html`<option value=${c}>${c}</option>`)}
+      </select>
+      <select class=${`select mini ${tag ? "set" : ""}`} value=${tag} onChange=${(e) => setTag(e.target.value)} aria-label="Tag">
+        <option value="">All tags</option>
+        ${tags.map((t) => html`<option value=${t}>${t}</option>`)}
+      </select>
+      <span class="count">${tricks ? `${shown.length} ${shown.length === 1 ? "trick" : "tricks"}` : ""}</span>
+      ${filtered && html`<button class="link-btn" onClick=${clear}>Clear</button>`}
+      <div class="grow"></div>
+      <div class="seg" role="group" aria-label="View">
+        <button class=${view === "grid" ? "on" : ""} aria-label="Grid view" aria-pressed=${view === "grid"} onClick=${() => setView("grid")}><${Icon} name="grid" /></button>
+        <button class=${view === "list" ? "on" : ""} aria-label="List view" aria-pressed=${view === "list"} onClick=${() => setView("list")}><${Icon} name="rows" /></button>
+      </div>
+    </div>
     <div class="scroll pad">
       <${SampleNote} list=${tricks} what="tricks" newPath="tricks/new" />
       ${!tricks
@@ -363,23 +400,38 @@ function TrickList({ ctx }) {
         : tricks.length === 0
           ? html`<div class="empty"><h2>Your trick library is empty</h2><p>Add your first trick, or send the chat a photo of a prop and it'll fill in the details.</p><button class="btn primary" onClick=${() => go("tricks/new")}><${Icon} name="plus" />New trick</button></div>`
           : shown.length === 0
-            ? html`<div class="empty"><h2>No matches</h2><p>Nothing fits that search.</p></div>`
-            : html`<div class="grid">
-                ${shown.map((t) => html`<button class="card" onClick=${() => go(`tricks/${t.id}`)}>
-                  <${Cover} trick=${t} />
-                  <div class="meta">
-                    <div class="name">${t.name}</div>
-                    <div class="sub">${[t.category, t.duration_min ? `${t.duration_min} min` : ""].filter(Boolean).join(" · ") || " "}</div>
-                    <div class="pills"><span class=${`pill ${t.status}`}>${statusLabel(t.status)}</span><${SampleTag} item=${t} /></div>
-                  </div>
-                </button>`)}
-              </div>`}
+            ? html`<div class="empty"><h2>No matches</h2><p>Nothing fits those filters.</p><button class="btn" onClick=${clear}>Clear filters</button></div>`
+            : view === "list"
+              ? html`<div class="tlist">
+                  ${shown.map((t) => html`<button class="trow" onClick=${() => go(`tricks/${t.id}`)}>
+                    <div class="tthumb"><${Cover} trick=${t} /></div>
+                    <div class="tmain">
+                      <div class="name">${t.name} <${SampleTag} item=${t} /></div>
+                      <div class="sub">${[t.category, t.duration_min ? `${t.duration_min} min` : "", t.location].filter(Boolean).join(" · ") || " "}</div>
+                      ${t.tags.length > 0 && html`<div class="ttags">${t.tags.slice(0, 4).map((x) => html`<span class="ttag">${x}</span>`)}${t.tags.length > 4 ? html`<span class="ttag">+${t.tags.length - 4}</span>` : null}</div>`}
+                    </div>
+                    <div class="tside">
+                      <span class=${`pill ${t.status}`}>${statusLabel(t.status)}</span>
+                      ${money(t.cost) && html`<span class="price">${money(t.cost)}</span>`}
+                    </div>
+                  </button>`)}
+                </div>`
+              : html`<div class="grid">
+                  ${shown.map((t) => html`<button class="card" onClick=${() => go(`tricks/${t.id}`)}>
+                    <${Cover} trick=${t} />
+                    <div class="meta">
+                      <div class="name">${t.name}</div>
+                      <div class="sub">${[t.category, t.duration_min ? `${t.duration_min} min` : ""].filter(Boolean).join(" · ") || " "}</div>
+                      <div class="pills"><span class=${`pill ${t.status}`}>${statusLabel(t.status)}</span><${SampleTag} item=${t} /></div>
+                    </div>
+                  </button>`)}
+                </div>`}
     </div>`;
 }
 
 const BLANK_TRICK = {
   name: "", category: "", status: "ready", effect: "", method: "", props: "", reset: "", duration_min: null,
-  location: "", source: "", cost: null, audiences: [], tags: [], links: [], images: [], notes: "",
+  location: "", source: "", cost: null, purchase_url: "", audiences: [], tags: [], links: [], images: [], notes: "",
 };
 
 /** Shared editor state: load once, track edits, save, and pick up chat changes when nothing is unsaved. */
@@ -554,8 +606,9 @@ function Area({ value, onInput, rows = 3, ...rest }) {
   return html`<textarea class="textarea" rows=${rows} value=${value ?? ""} onInput=${(e) => onInput(e.target.value)} ...${rest}></textarea>`;
 }
 
-function TagInput({ value, onChange, placeholder }) {
+function TagInput({ value, onChange, placeholder, suggestions = [] }) {
   const [text, setText] = useState("");
+  const listId = useMemo(() => `tags-${uid()}`, []);
   const add = () => {
     const v = text.trim().replace(/,$/, "");
     if (v && !value.includes(v)) onChange([...value, v]);
@@ -563,13 +616,21 @@ function TagInput({ value, onChange, placeholder }) {
   };
   return html`<div class="taglist">
     ${value.map((t) => html`<span class="tag">${t}<button type="button" aria-label=${`Remove ${t}`} onClick=${() => onChange(value.filter((x) => x !== t))}><${Icon} name="x" /></button></span>`)}
-    <input value=${text} placeholder=${value.length ? "" : placeholder}
-      onInput=${(e) => setText(e.target.value)}
+    <input value=${text} placeholder=${value.length ? "" : placeholder} list=${listId}
+      onInput=${(e) => {
+        // Picking from the suggestion list adds the tag straight away.
+        if (e.inputType === "insertReplacementText" || (!e.inputType && suggestions.includes(e.target.value))) {
+          const v = e.target.value.trim();
+          if (v && !value.includes(v)) onChange([...value, v]);
+          setText("");
+        } else setText(e.target.value);
+      }}
       onKeyDown=${(e) => {
         if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }
         else if (e.key === "Backspace" && !text && value.length) onChange(value.slice(0, -1));
       }}
       onBlur=${add} />
+    <datalist id=${listId}>${suggestions.filter((x) => !value.includes(x)).map((x) => html`<option value=${x} />`)}</datalist>
   </div>`;
 }
 
@@ -630,6 +691,10 @@ function TrickEditor({ id, ctx }) {
   if (missing) return html`<${BackBar} to="tricks" label="Tricks" /><div class="empty"><h2>Trick not found</h2><p>It may have been deleted.</p></div>`;
   if (!draft) return html`<${BackBar} to="tricks" label="Tricks" />`;
   const usedIn = (ctx.setlists || []).filter((s) => s.items.some((i) => i.trick_id === id));
+  const real = ctx.real.tricks || [];
+  const allTags = uniqueSorted(real.flatMap((t) => t.tags));
+  const allAudiences = uniqueSorted(["corporate", "family", "kids", "adults", ...real.flatMap((t) => t.audiences)]);
+  const allCategories = uniqueSorted(["close-up", "parlor", "stage", "mentalism", "kids", ...real.map((t) => t.category)]);
 
   return html`
     <${BackBar} to="tricks" label="Tricks">
@@ -644,10 +709,11 @@ function TrickEditor({ id, ctx }) {
               ${STATUSES.map(([k, l]) => html`<option value=${k}>${l}</option>`)}
             </select>
           <//>
-          <${Field} label="CATEGORY"><${Text} value=${draft.category} placeholder="Close-up, stage, mentalism…" onInput=${(v) => set({ category: v })} /><//>
+          <${Field} label="CATEGORY"><${Text} value=${draft.category} placeholder="Close-up, stage, mentalism…" list="trick-categories" onInput=${(v) => set({ category: v })} /><//>
           <${Field} label="LENGTH (MIN)"><${Text} type="number" min="0" step="0.5" inputmode="decimal" value=${draft.duration_min ?? ""} onInput=${(v) => set({ duration_min: v === "" ? null : Number(v) })} /><//>
           <${Field} label="WHERE IT LIVES"><${Text} value=${draft.location} placeholder="Case, shelf, bag…" onInput=${(v) => set({ location: v })} /><//>
         </div>
+        <datalist id="trick-categories">${allCategories.map((c) => html`<option value=${c} />`)}</datalist>
         <div class="section">
           <h3>Photos & files</h3>
           <${Gallery} ctx=${ctx} keys=${draft.images} onChange=${(images) => set({ images })} />
@@ -661,19 +727,28 @@ function TrickEditor({ id, ctx }) {
         </div>
         <div class="section">
           <h3>Audiences & tags</h3>
-          <${Field} label="GOOD FOR"><${TagInput} value=${draft.audiences} placeholder="corporate, family, kids…" onChange=${(audiences) => set({ audiences })} /><//>
-          <${Field} label="TAGS"><${TagInput} value=${draft.tags} placeholder="cards, needs batteries, opener…" onChange=${(tags) => set({ tags })} /><//>
+          <${Field} label="GOOD FOR"><${TagInput} value=${draft.audiences} suggestions=${allAudiences} placeholder="corporate, family, kids…" onChange=${(audiences) => set({ audiences })} /><//>
+          <${Field} label="TAGS"><${TagInput} value=${draft.tags} suggestions=${allTags} placeholder="cards, needs batteries, opener…" onChange=${(tags) => set({ tags })} /><//>
         </div>
         <div class="section">
           <h3>Links</h3>
           <${Links} links=${draft.links} onChange=${(links) => set({ links })} />
         </div>
         <div class="section">
-          <h3>Details</h3>
+          <h3>Buying</h3>
           <div class="cols">
-            <${Field} label="SOURCE / MAKER"><${Text} value=${draft.source} onInput=${(v) => set({ source: v })} /><//>
-            <${Field} label="COST ($)"><${Text} type="number" min="0" step="0.01" inputmode="decimal" value=${draft.cost ?? ""} onInput=${(v) => set({ cost: v === "" ? null : Number(v) })} /><//>
+            <${Field} label="PRICE ($)"><${Text} type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value=${draft.cost ?? ""} onInput=${(v) => set({ cost: v === "" ? null : Number(v) })} /><//>
+            <${Field} label="SOURCE / MAKER"><${Text} value=${draft.source} placeholder="Dealer or creator" onInput=${(v) => set({ source: v })} /><//>
           </div>
+          <${Field} label="PURCHASE LINK">
+            <div class="with-btn">
+              <input class="input" inputmode="url" placeholder="https://…" value=${draft.purchase_url || ""} onInput=${(e) => set({ purchase_url: e.target.value })} />
+              ${draft.purchase_url && html`<a class="btn" href=${/^https?:/.test(draft.purchase_url) ? draft.purchase_url : `https://${draft.purchase_url}`} target="_blank" rel="noopener"><${Icon} name="external" />${draft.status === "wishlist" ? "Buy" : "Open"}</a>`}
+            </div>
+          <//>
+          <p class="hint">Price and purchase link are private. They're never included in share links.</p>
+        </div>
+        <div class="section">
           <${Field} label="NOTES"><${Area} value=${draft.notes} onInput=${(v) => set({ notes: v })} /><//>
         </div>
         ${usedIn.length > 0 && html`<div class="section"><h3>In set lists</h3>

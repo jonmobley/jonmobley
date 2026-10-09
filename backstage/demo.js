@@ -56,7 +56,7 @@ export const DEMO_TRICKS = [
     audiences: ["family", "corporate"], tags: ["closer", "holiday"],
   },
 ].map((t) => ({
-  method: METHOD, links: [], images: [], notes: "", created_at: t0, updated_at: t0, demo: true, ...t,
+  method: METHOD, purchase_url: "", links: [], images: [], notes: "", created_at: t0, updated_at: t0, demo: true, ...t,
 }));
 
 export const DEMO_SETLISTS = [

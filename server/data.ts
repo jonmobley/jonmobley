@@ -10,7 +10,7 @@ export interface Link { label: string; url: string }
 export interface Trick {
   id: string; name: string; category: string; status: string; effect: string; method: string;
   props: string; reset: string; duration_min: number | null; location: string; source: string;
-  cost: number | null; audiences: string[]; tags: string[]; links: Link[]; images: string[];
+  cost: number | null; purchase_url: string; audiences: string[]; tags: string[]; links: Link[]; images: string[];
   notes: string; created_at: number; updated_at: number;
 }
 export interface SetItem { id: string; trick_id?: string; title?: string; duration_min?: number | null; notes?: string }
@@ -109,7 +109,7 @@ export async function saveTrick(env: Env, input: Json, id?: string): Promise<Tri
   const has = (k: string) => Object.prototype.hasOwnProperty.call(input, k);
   const base: Trick = existing ?? {
     id: newId(), name: "", category: "", status: "ready", effect: "", method: "", props: "", reset: "",
-    duration_min: null, location: "", source: "", cost: null, audiences: [], tags: [], links: [], images: [],
+    duration_min: null, location: "", source: "", cost: null, purchase_url: "", audiences: [], tags: [], links: [], images: [],
     notes: "", created_at: Date.now(), updated_at: Date.now(),
   };
   const t: Trick = { ...base, updated_at: Date.now() };
@@ -123,6 +123,12 @@ export async function saveTrick(env: Env, input: Json, id?: string): Promise<Tri
   }
   if (has("duration_min")) t.duration_min = num(input.duration_min);
   if (has("cost")) t.cost = num(input.cost);
+  if (has("purchase_url")) {
+    const raw = str(input.purchase_url, 2000);
+    const url = safeUrl(raw);
+    if (raw && !url) throw new InputError("The purchase link doesn't look like a web address.");
+    t.purchase_url = url ?? "";
+  }
   if (has("audiences")) t.audiences = strList(input.audiences);
   if (has("tags")) t.tags = strList(input.tags);
   if (has("links")) t.links = links(input.links);
@@ -131,15 +137,15 @@ export async function saveTrick(env: Env, input: Json, id?: string): Promise<Tri
 
   await env.DB.prepare(
     `INSERT INTO tricks (id, name, category, status, effect, method, props, reset, duration_min, location, source, cost,
-       audiences, tags, links, images, notes, created_at, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+       audiences, tags, links, images, notes, created_at, updated_at, purchase_url)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
      ON CONFLICT(id) DO UPDATE SET name=?2, category=?3, status=?4, effect=?5, method=?6, props=?7, reset=?8,
        duration_min=?9, location=?10, source=?11, cost=?12, audiences=?13, tags=?14, links=?15, images=?16, notes=?17,
-       updated_at=?19`,
+       updated_at=?19, purchase_url=?20`,
   )
     .bind(t.id, t.name, t.category, t.status, t.effect, t.method, t.props, t.reset, t.duration_min, t.location, t.source,
       t.cost, JSON.stringify(t.audiences), JSON.stringify(t.tags), JSON.stringify(t.links), JSON.stringify(t.images),
-      t.notes, t.created_at, t.updated_at)
+      t.notes, t.created_at, t.updated_at, t.purchase_url)
     .run();
   return t;
 }
