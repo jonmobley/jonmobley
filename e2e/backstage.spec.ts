@@ -44,4 +44,8 @@ test("a share link that doesn't exist says so", async ({ page, request }) => {
 
 test("stats need a sign-in", async ({ request }) => {
   expect((await request.get("/api/stats?days=30")).status()).toBe(401);
+test("trick cards sit side by side in grid view", async ({ page }) => {
+  // Signed-out pages can't show the library, so check the stylesheet rule directly.
+  const res = await page.request.get("/backstage/app.css");
+  expect(await res.text()).toMatch(/\.grid \{ display: grid;/);
 });

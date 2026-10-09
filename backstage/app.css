@@ -157,7 +157,7 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
 .with-btn .input { flex: 1; min-width: 0; }
 .hint { margin: -4px 0 0; color: var(--muted); font-size: 12px; }
 
-.grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
 .card {
   text-align: left; background: var(--card); border: 1px solid #333; border-radius: 14px; overflow: hidden;
   display: flex; flex-direction: column; transition: background .15s, transform .15s;
