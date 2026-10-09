@@ -2,7 +2,7 @@
 // Streams newline-delimited JSON events to the browser:
 //   {t:"text", d}  reply text as it's written     {t:"step", d}  a change Claude made
 //   {t:"changed", what}  which library lists to reload   {t:"error", d}   {t:"done"}
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, { toFile } from "@anthropic-ai/sdk";
 import type { Env } from "./env";
 import * as data from "./data";
 
@@ -274,23 +274,25 @@ export async function deleteChat(env: Env, id: string) {
   await env.MEDIA.delete(chatKey(id));
 }
 
-function toBase64(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf);
-  let s = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(s);
-}
-
-const VISION_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+const VISION_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_VISION_BYTES = 5 * 1024 * 1024; // Claude's per-image limit
 
 /** Handles one user message: streams Claude's reply and saves the transcript. */
-export function streamReply(env: Env, chatId: string, text: string, imageKeys: string[], today: string): Response {
+export function streamReply(
+  env: Env,
+  waitUntil: (p: Promise<unknown>) => void,
+  chatId: string,
+  text: string,
+  imageKeys: string[],
+  today: string,
+): Response {
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
   const send = (event: Json) => writer.write(encoder.encode(JSON.stringify(event) + "\n")).catch(() => {});
 
-  (async () => {
+  // waitUntil keeps the reply going (and the transcript saved) if the browser goes away mid-answer.
+  waitUntil((async () => {
     const file = (await loadChat(env, chatId)) ?? { history: [], view: [] };
     const isFirst = file.view.length === 0;
     const steps: string[] = [];
@@ -298,23 +300,30 @@ export function streamReply(env: Env, chatId: string, text: string, imageKeys: s
     let lastGood = file.history.length; // history is only ever cut back to a valid point
 
     try {
-      const content: Anthropic.Beta.BetaContentBlockParam[] = [];
-      for (const key of imageKeys) {
-        const obj = await env.MEDIA.get(key);
-        const type = obj?.httpMetadata?.contentType as (typeof VISION_TYPES)[number] | undefined;
-        if (!obj || !type || !VISION_TYPES.includes(type)) continue;
-        content.push({ type: "image", source: { type: "base64", media_type: type, data: toBase64(await obj.arrayBuffer()) } });
-        content.push({ type: "text", text: `(That photo is saved as ${key} — use this key to attach it to a trick.)` });
-      }
-      content.push({ type: "text", text: `${text || "(photo only)"}\n\n(Today is ${today}.)` });
-      file.history.push({ role: "user", content });
       file.view.push({ role: "user", text, images: imageKeys.length ? imageKeys : undefined, at: Date.now() });
-      lastGood = file.history.length;
-
       if (!env.ANTHROPIC_API_KEY) {
         throw new Error("Chat isn't switched on yet: the site needs an Anthropic API key (ANTHROPIC_API_KEY).");
       }
       const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, baseURL: env.ANTHROPIC_BASE_URL || undefined });
+
+      // Photos go to Anthropic's file storage once, so the transcript only holds a short file id.
+      const content: Anthropic.Beta.BetaContentBlockParam[] = [];
+      for (const key of imageKeys) {
+        const obj = await env.MEDIA.get(key);
+        const type = obj?.httpMetadata?.contentType;
+        if (!obj || !type || !VISION_TYPES.includes(type)) continue;
+        if (obj.size > MAX_VISION_BYTES) {
+          content.push({ type: "text", text: `(A photo saved as ${key} was too large for you to view, but it can still be attached to a trick.)` });
+          continue;
+        }
+        const uploaded = await client.files.upload({ file: await toFile(await obj.arrayBuffer(), key.split("/")[1], { type }) });
+        content.push({ type: "image", source: { type: "file", file_id: uploaded.id } });
+        content.push({ type: "text", text: `(That photo is saved as ${key} — use this key to attach it to a trick.)` });
+      }
+      content.push({ type: "text", text: `${text || "(photo only)"}\n\n(Today is ${today}.)` });
+      // Not counted as good until Claude accepts it, so a bad turn can't break the chat for good.
+      file.history.push({ role: "user", content });
+
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         const stream = client.beta.messages.stream({
           model: MODEL,
@@ -341,7 +350,14 @@ export function streamReply(env: Env, chatId: string, text: string, imageKeys: s
         if (message.stop_reason === "pause_turn") continue;
 
         const toolUses = message.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
-        if (toolUses.length === 0 || message.stop_reason !== "tool_use") {
+        if (message.stop_reason !== "tool_use") {
+          // Cut off mid-call (e.g. max_tokens): answer any tool calls as "not run" so the history stays valid.
+          if (toolUses.length) {
+            file.history.push({
+              role: "user",
+              content: toolUses.map((u) => ({ type: "tool_result" as const, tool_use_id: u.id, content: "Not run: the reply was cut off.", is_error: true })),
+            });
+          }
           lastGood = file.history.length;
           break;
         }
@@ -388,7 +404,7 @@ export function streamReply(env: Env, chatId: string, text: string, imageKeys: s
     await saveChat(env, chatId, file, title).catch((e) => console.error("save chat failed", e));
     send({ t: "done" });
     await writer.close().catch(() => {});
-  })();
+  })());
 
   return new Response(readable, {
     headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store", "X-Accel-Buffering": "no" },

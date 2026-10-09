@@ -23,7 +23,7 @@ test("backstage data needs a sign-in", async ({ request }) => {
 });
 
 test("source files are not served", async ({ request }) => {
-  for (const path of ["/wrangler.toml", "/server/auth.ts", "/functions/_middleware.ts", "/migrations/0001_backstage.sql", "/package.json"]) {
+  for (const path of ["/wrangler.toml", "/server/auth.ts", "/functions/_middleware.ts", "/migrations/0001_backstage.sql", "/package.json", "/.dev.vars", "/CLAUDE.md", "/test-results/.last-run.json"]) {
     expect((await request.get(path)).status(), path).toBe(404);
   }
 });

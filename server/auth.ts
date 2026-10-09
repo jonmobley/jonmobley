@@ -111,13 +111,14 @@ export async function login(request: Request, env: Env, password: string): Promi
   const ip = request.headers.get("CF-Connecting-IP") || "local";
   const since = Date.now() - WINDOW_MS;
   await env.DB.prepare("DELETE FROM login_attempts WHERE at < ?").bind(since).run();
+  // Record the attempt before checking, so parallel guesses all count.
+  await env.DB.prepare("INSERT INTO login_attempts (ip, at) VALUES (?, ?)").bind(ip, Date.now()).run();
   const recent = await env.DB.prepare("SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ?").bind(ip).first<{ n: number }>();
-  if ((recent?.n ?? 0) >= MAX_FAILURES) {
+  if ((recent?.n ?? 0) > MAX_FAILURES) {
     return { error: "Too many tries. Wait 15 minutes and try again.", status: 429 };
   }
   const stored = await getSetting(env, "password_hash");
   if (!stored || !(await verifyPassword(password, stored))) {
-    await env.DB.prepare("INSERT INTO login_attempts (ip, at) VALUES (?, ?)").bind(ip, Date.now()).run();
     return { error: "That password didn't work.", status: 401 };
   }
   await env.DB.prepare("DELETE FROM login_attempts WHERE ip = ?").bind(ip).run();

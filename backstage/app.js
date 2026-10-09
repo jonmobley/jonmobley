@@ -174,7 +174,13 @@ function useHashRoute() {
   }, []);
   return route;
 }
-const go = (path) => { location.hash = `#/${path}`; };
+// Set while an editor has unsaved changes, so moving around inside the app asks first.
+let unsaved = false;
+const go = (path) => {
+  if (unsaved && !confirm("You have unsaved changes. Leave without saving?")) return;
+  unsaved = false;
+  location.hash = `#/${path}`;
+};
 
 function App() {
   const [session, setSession] = useState(null);
@@ -184,9 +190,15 @@ function App() {
     addEventListener("backstage:signed-out", out);
     return () => removeEventListener("backstage:signed-out", out);
   }, []);
+  const [wasIn, setWasIn] = useState(false);
+  useEffect(() => { if (session?.signedIn) setWasIn(true); }, [session]);
   if (!session) return null;
-  if (!session.signedIn) return html`<${Login} session=${session} onIn=${() => setSession({ ...session, signedIn: true })} />`;
-  return html`<${Backstage} onOut=${() => setSession({ ...session, signedIn: false })} />`;
+  const login = html`<${Login} session=${session} onIn=${() => setSession({ ...session, signedIn: true })} />`;
+  if (!wasIn && !session.signedIn) return login;
+  // Signed out mid-session (expired, or password changed elsewhere): sign in on top, keeping unsaved work.
+  return html`
+    <${Backstage} onOut=${() => { unsaved = false; setWasIn(false); setSession({ ...session, signedIn: false }); }} />
+    ${!session.signedIn && html`<div class="modal-wrap">${login}</div>`}`;
 }
 
 function Login({ session, onIn }) {
@@ -392,6 +404,7 @@ function useSaver({ path, id, draft, isNew, setDirty, ctx, which, back, what }) 
     try {
       await api(`${path}/${id}`, { method: "DELETE" });
       await ctx.load([which]);
+      unsaved = false;
       go(back);
       ctx.setToast("Deleted");
     } catch (e) {
@@ -404,10 +417,11 @@ function useSaver({ path, id, draft, isNew, setDirty, ctx, which, back, what }) 
 // Warn before leaving an editor with unsaved changes.
 function useLeaveGuard(dirty) {
   useEffect(() => {
+    unsaved = dirty;
     if (!dirty) return;
     const on = (e) => { e.preventDefault(); e.returnValue = ""; };
     addEventListener("beforeunload", on);
-    return () => removeEventListener("beforeunload", on);
+    return () => { removeEventListener("beforeunload", on); unsaved = false; };
   }, [dirty]);
 }
 
@@ -455,16 +469,17 @@ function Uploader({ onAdded, accept, label = "Add photo", ctx }) {
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(0);
   const send = async (files) => {
+    const keys = [];
+    setBusy((n) => n + files.length);
     for (const f of files) {
-      setBusy((n) => n + 1);
       try {
-        const r = await upload(f);
-        onAdded(r.key);
+        keys.push((await upload(f)).key);
       } catch (e) {
         ctx.setToast(e.message);
       }
       setBusy((n) => n - 1);
     }
+    if (keys.length) onAdded(keys);
   };
   return html`<button type="button" class=${`drop ${over ? "over" : ""}`} onClick=${() => input.current.click()}
       onDragOver=${(e) => { e.preventDefault(); setOver(true); }} onDragLeave=${() => setOver(false)}
@@ -482,7 +497,7 @@ function Gallery({ keys, onChange, ctx }) {
       </a>
       <button class="x" aria-label="Remove" onClick=${() => onChange(keys.filter((x) => x !== k))}><${Icon} name="x" /></button>
     </div>`)}
-    <${Uploader} ctx=${ctx} accept="image/*,application/pdf,video/mp4,video/quicktime" label="Add photo or file" onAdded=${(k) => onChange([...keys, k])} />
+    <${Uploader} ctx=${ctx} accept="image/*,application/pdf,video/mp4,video/quicktime" label="Add photo or file" onAdded=${(added) => onChange([...keys, ...added])} />
   </div>`;
 }
 
@@ -915,6 +930,8 @@ function Chat({ ctx }) {
       }
     } catch (e) {
       ctx.setToast(e.message);
+      setText(body);
+      setPics(pics);
       setBusy(false);
       return;
     }

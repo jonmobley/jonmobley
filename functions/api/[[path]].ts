@@ -65,7 +65,7 @@ async function media(request: Request, env: Env, key: string): Promise<Response>
   return new Response(obj.body, { headers });
 }
 
-export const onRequest: PagesFunction<Env> = async ({ request, env, params }) => {
+export const onRequest: PagesFunction<Env> = async ({ request, env, params, waitUntil }) => {
   const parts = (Array.isArray(params.path) ? params.path : [params.path]).filter(Boolean) as string[];
   const [section, id, sub] = parts;
   const method = request.method;
@@ -145,7 +145,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params }) =>
             : [];
           if (!text && !images.length) return fail("Type a message first.");
           const today = typeof b.today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.today) ? b.today : new Date().toISOString().slice(0, 10);
-          return chat.streamReply(env, id, text, images, today);
+          return chat.streamReply(env, waitUntil, id, text, images, today);
         }
         break;
       }

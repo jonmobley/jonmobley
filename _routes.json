@@ -13,7 +13,13 @@
     "/package.json",
     "/package-lock.json",
     "/playwright.config.ts",
-    "/_routes.json"
+    "/_routes.json",
+    "/.dev.vars",
+    "/.gitignore",
+    "/test-results/*",
+    "/playwright-report/*",
+    "/CLAUDE.md",
+    "/ABOUT-THIS-APP.md"
   ],
   "exclude": []
 }
