@@ -167,6 +167,7 @@ const PATHS = {
   folder: "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
   chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
   home: "M3 11l9-8 9 8M5 9.5V20h5v-6h4v6h5V9.5",
+  sidebar: "M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM9 4v16",
   more: "M5 12h.01M12 12h.01M19 12h.01",
   download: "M12 3v12M7 10l5 5 5-5M5 21h14",
   upload: "M12 21V9M7 14l5-5 5 5M5 3h14",
@@ -275,6 +276,9 @@ function Backstage({ onOut }) {
   const [links, setLinks] = useState(null);
   const [more, setMore] = useState(false);
   const [pane, setPane] = useState(() => (matchMedia("(max-width: 900px)").matches ? "lib" : "both"));
+  // Desktop: the chat panel slides in and out; remembered per device.
+  const [chatOpen, setChatOpen] = useState(() => store.get("chat-open") !== "0");
+  useEffect(() => { store.set("chat-open", chatOpen ? "1" : "0"); }, [chatOpen]);
   const [settings, setSettings] = useState(false);
   const [toast, setToast] = useState("");
   const [show, setShow] = useState(null);
@@ -339,9 +343,13 @@ function Backstage({ onOut }) {
   const openTasks = (tasks || []).filter((t) => !t.done).length;
 
   return html`
-    <div class="shell">
+    <div class=${`shell ${chatOpen ? "" : "chat-closed"}`}>
       <header class="top">
-        <div class="brand"><div class="badge">JM</div><span class="word">Backstage</span></div>
+        <div class="brand">
+          <div class="badge">JM</div><span class="word">Backstage</span>
+          <button class="icon-btn sidebar-toggle" onClick=${() => setChatOpen(!chatOpen)} aria-pressed=${chatOpen}
+            aria-label=${chatOpen ? "Hide chat" : "Show chat"} title=${chatOpen ? "Hide chat" : "Show chat"}><${Icon} name="sidebar" /></button>
+        </div>
         <nav class="tabs">
           ${SECTIONS.map(([k, label]) => html`<button class=${`tab ${tab === k && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab(k)}>
             ${label}${k === "tasks" && openTasks > 0 ? html`<span class="count-badge">${openTasks}</span>` : null}

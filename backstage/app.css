@@ -79,6 +79,23 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
 
 .split { flex: 1; min-height: 0; display: flex; gap: 0; padding: 0 12px 12px 0; }
 .chat { width: 440px; flex: none; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid #262626; }
+.sidebar-toggle { margin-left: auto; }
+@media (min-width: 901px) {
+  /* Chat slides in and out; its contents keep their width so nothing reflows mid-slide. */
+  .chat { overflow: hidden; transition: width .25s ease, opacity .2s ease, border-color .25s; }
+  .chat > * { min-width: 440px; }
+  .chat > .history { min-width: 0; }
+  .chat > .composer { min-width: 416px; } /* 440 minus its 12px side margins */
+  .shell.chat-closed .chat { width: 0; opacity: 0; border-right-color: transparent; pointer-events: none; }
+  .stage { transition: margin-left .25s ease; }
+  .shell.chat-closed .stage { margin-left: 12px; }
+  .brand { transition: width .25s ease; }
+  .shell.chat-closed .brand { width: 170px; }
+  .shell.chat-closed .tabs { margin-left: 8px; }
+}
+@media (max-width: 900px) {
+  .sidebar-toggle { display: none; }
+}
 .stage {
   flex: 1; min-width: 0; margin-left: 16px; background: var(--panel); border-radius: var(--radius);
   display: flex; flex-direction: column; min-height: 0; overflow: hidden;
