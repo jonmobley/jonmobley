@@ -17,7 +17,7 @@ Public site: plain HTML, CSS and JS, no build step. Plus **/backstage**: Jon's p
 - `functions/api/[[path]].ts`: every `/api/*` route. `functions/_middleware.ts` + `_routes.json` 404 the repo's source files (`server/`, `wrangler.toml`, `package.json`, …) so they're never served.
 - `server/`: `auth.ts` (one password, PBKDF2 hash + HMAC session cookie, both in the `settings` table; login rate limit), `data.ts` (tricks/set lists/playlists, cleaning rules, R2 uploads), `chat.ts` (Claude `claude-opus-5-5` with tools over the library; streams NDJSON; transcripts in R2 `chats/<id>.json`).
 - Data: D1 `jonmobley-backstage` (binding `DB`, schema in `migrations/`), R2 `jonmobley-backstage` (binding `MEDIA`: `media/<uuid>.<ext>` uploads, `chats/`). Config in `wrangler.toml`.
-- Secrets: `ANTHROPIC_API_KEY` (Pages secret). Reset the password: `node scripts/set-password.mjs --remote`.
+- Secrets: `ANTHROPIC_API_KEY` (Pages secret, production + preview; source: `op://Moxie/newapp/LLM_API_KEY`). Reset the password: `node scripts/set-password.mjs --remote`.
 - Writes need the `X-Backstage: 1` header (CSRF guard); everything but session/login needs the cookie.
 
 ## Folders
