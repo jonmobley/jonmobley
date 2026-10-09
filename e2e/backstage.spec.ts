@@ -22,6 +22,12 @@ test("backstage data needs a sign-in", async ({ request }) => {
   expect((await request.post("/api/login", { data: { password: "x" } })).status()).toBe(403);
 });
 
+test("source files are not served, even with encoded addresses", async ({ request }) => {
+  for (const path of ["/%73erver/data.ts", "/server%2Fdata.ts", "/%77rangler.toml", "/%70ackage.json", "/functions%2F_middleware.ts", "/%43LAUDE.md"]) {
+    expect((await request.get(path)).status(), path).toBe(404);
+  }
+});
+
 test("source files are not served", async ({ request }) => {
   for (const path of ["/wrangler.toml", "/server/auth.ts", "/functions/_middleware.ts", "/migrations/0001_backstage.sql", "/package.json", "/.dev.vars", "/CLAUDE.md", "/test-results/.last-run.json"]) {
     expect((await request.get(path)).status(), path).toBe(404);
