@@ -2484,6 +2484,10 @@ function AgentBookingPage({ ctx }) {
             </div>`;
           })}
         </section>
+        <${Field} label="YOUR HOME STATE (VENUES ELSEWHERE ARE FLAGGED IN YOUR TEXT)">
+          <input class="input" maxlength="2" placeholder="IN" style="max-width:120px;text-transform:uppercase" value=${form.homeState}
+            onInput=${(e) => set("homeState", e.target.value.toUpperCase())} />
+        <//>
         <${Field} label="NOTE SHOWN WITH EVERY QUOTE">
           <textarea class="input" rows="3" value=${form.policyText} onInput=${(e) => set("policyText", e.target.value)}></textarea>
         <//>
