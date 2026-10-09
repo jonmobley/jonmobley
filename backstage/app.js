@@ -879,12 +879,14 @@ function Chat({ ctx }) {
   const scroller = useRef();
   const fileInput = useRef();
   const box = useRef();
+  const created = useRef(null); // a chat made by send(): its messages are already on screen
 
   const loadChats = () => api("chats").then(setChats).catch(() => {});
   useEffect(() => { loadChats(); }, []);
   useEffect(() => {
     store.set("chat", chatId);
     if (!chatId) { setMessages([]); return; }
+    if (created.current === chatId) return;
     api(`chats/${chatId}`).then((r) => setMessages(r.messages)).catch((e) => {
       if (e.status === 404) setChatId(null);
     });
@@ -926,6 +928,7 @@ function Chat({ ctx }) {
     try {
       if (!id) {
         id = (await api("chats", { method: "POST", body: {} })).id;
+        created.current = id;
         setChatId(id);
       }
     } catch (e) {
@@ -937,7 +940,7 @@ function Chat({ ctx }) {
     }
     const images = ready.map((p) => p.key);
     setMessages((m) => [...m, { role: "user", text: body, images, at: Date.now() }, { role: "assistant", text: "", steps: [], pending: true }]);
-    const patchLast = (fn) => setMessages((m) => [...m.slice(0, -1), fn(m[m.length - 1])]);
+    const patchLast = (fn) => setMessages((m) => (m.length && m[m.length - 1].role === "assistant" ? [...m.slice(0, -1), fn(m[m.length - 1])] : m));
     try {
       const res = await api(`chats/${id}/messages`, { method: "POST", body: { text: body, images, today: today() }, raw: true });
       const reader = res.body.getReader();
