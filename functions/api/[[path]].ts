@@ -4,6 +4,7 @@ import * as auth from "../../server/auth";
 import * as data from "../../server/data";
 import * as chat from "../../server/chat";
 import * as shares from "../../server/shares";
+import * as stats from "../../server/stats";
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -127,6 +128,11 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
         const result = await auth.changePassword(env, String(b.current ?? ""), String(b.next ?? ""));
         if ("error" in result) return fail(result.error);
         return json({ ok: true }, 200, { "Set-Cookie": cookieFor(request, result.cookie) });
+      }
+      case "stats": {
+        if (method !== "GET") break;
+        const days = Math.min(400, Math.max(1, Number(new URL(request.url).searchParams.get("days")) || 30));
+        return json(await stats.summary(env, days));
       }
       case "shares": {
         // /api/shares/<kind>/<item id>: GET the link (or null), POST to turn it on, DELETE to turn it off.

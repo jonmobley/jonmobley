@@ -35,3 +35,7 @@ test("a share link that doesn't exist says so", async ({ page, request }) => {
   await expect(page.getByRole("heading", { name: "Not available" })).toBeVisible();
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 });
+
+test("stats need a sign-in", async ({ request }) => {
+  expect((await request.get("/api/stats?days=30")).status()).toBe(401);
+});

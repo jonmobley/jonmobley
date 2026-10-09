@@ -165,6 +165,7 @@ const PATHS = {
   note: "M4 4h16v12l-6 4H4zM14 20v-4h6M8 9h8M8 13h5",
   pin: "M12 17v5M8 3h8l-1 6 3 4H6l3-4z",
   folder: "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
   more: "M5 12h.01M12 12h.01M19 12h.01",
   download: "M12 3v12M7 10l5 5 5-5M5 21h14",
   upload: "M12 21V9M7 14l5-5 5 5M5 3h14",
@@ -255,6 +256,7 @@ const SECTIONS = [
   ["notes", "Notes", "Notes", "note"],
   ["files", "Files", "Files", "folder"],
   ["links", "Links", "Links", "link"],
+  ["stats", "Stats", "Stats", "chart"],
 ];
 // Phones show these in the bottom bar; the rest live under "More".
 const PHONE_MAIN = ["tricks", "gear", "sets", "tasks"];
@@ -325,6 +327,7 @@ function Backstage({ onOut }) {
   else if (section === "notes") view = html`<${NoteList} ctx=${ctx} />`;
   else if (section === "files") view = html`<${FilesPage} ctx=${ctx} />`;
   else if (section === "links") view = html`<${LinksPage} ctx=${ctx} />`;
+  else if (section === "stats") view = html`<${StatsPage} ctx=${ctx} />`;
   else if (section === "tricks" && id) view = html`<${TrickEditor} key=${id} id=${id} ctx=${ctx} />`;
   else view = html`<${TrickList} ctx=${ctx} />`;
 
@@ -1885,6 +1888,163 @@ function LinksPage({ ctx }) {
                 </div>`)}
           </div>
         </div>`)}
+      </div>
+    </div>`;
+}
+
+// ---------- stats ----------
+
+const STAT_RANGES = [[7, "7 days"], [30, "30 days"], [90, "90 days"]];
+const nf = (n) => Number(n || 0).toLocaleString();
+const shortDay = (d) => {
+  const [y, m, day] = d.split("-").map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+};
+const BOT_KIND = { ai_live: "Looked you up for someone", ai_index: "AI search index", ai_train: "AI training", search: "Search engine" };
+
+/** A small round number at or above n, for the top gridline. */
+function niceMax(n) {
+  if (n <= 4) return 4;
+  const p = 10 ** Math.floor(Math.log10(n));
+  return [1, 2, 2.5, 5, 10].map((m) => m * p).find((x) => x >= n);
+}
+
+/**
+ * Bars per day (stacked when there is more than one series). One axis, thin bars with
+ * rounded tops, 2px surface gaps between stacked pieces, hairline grid, hover tooltip.
+ */
+function DayBars({ data, series, label }) {
+  const [hover, setHover] = useState(null);
+  const box = useRef();
+  const W = 720, H = 180, L = 34, R = 6, T = 8, B = 22;
+  const n = data.length;
+  const totals = data.map((d) => series.reduce((t, s) => t + (d[s.key] || 0), 0));
+  const max = niceMax(Math.max(...totals, 0));
+  const slot = (W - L - R) / n;
+  const bw = Math.max(2, Math.min(24, slot - 2));
+  const y = (v) => T + (H - T - B) * (1 - v / max);
+  const ticks = [0, max / 2, max];
+  const xLabels = n <= 7 ? data.map((_, i) => i) : [0, Math.floor((n - 1) / 2), n - 1];
+  const onMove = (e) => {
+    const r = box.current.getBoundingClientRect();
+    const i = Math.floor(((e.clientX - r.left) / r.width * W - L) / slot);
+    setHover(i >= 0 && i < n ? i : null);
+  };
+  const h = hover != null ? data[hover] : null;
+  return html`<div class="chart" ref=${box} onPointerMove=${onMove} onPointerDown=${onMove} onPointerLeave=${() => setHover(null)}>
+    <svg viewBox=${`0 0 ${W} ${H}`} role="img" aria-label=${label} preserveAspectRatio="none">
+      ${ticks.map((t) => html`<line x1=${L} x2=${W - R} y1=${y(t)} y2=${y(t)} class="grid" />`)}
+      ${data.map((d, i) => {
+        let base = 0;
+        const x = L + i * slot + (slot - bw) / 2;
+        const parts = series.filter((s) => d[s.key] > 0);
+        return html`<g class=${hover === i ? "hov" : ""}>${parts.map((s, j) => {
+          const v = d[s.key];
+          const top = y(base + v), bottom = y(base);
+          base += v;
+          const gap = j > 0 ? 2 : 0; // surface gap between stacked pieces
+          const hgt = Math.max(0, bottom - top - gap);
+          const r = j === parts.length - 1 ? Math.min(4, hgt, bw / 2) : 0;
+          return html`<path fill=${s.color} d=${`M${x},${bottom - gap} V${top + r} q0,${-r} ${r},${-r} H${x + bw - r} q${r},0 ${r},${r} V${bottom - gap} Z`} />`;
+        })}</g>`;
+      })}
+      ${hover != null && html`<line class="cross" x1=${L + hover * slot + slot / 2} x2=${L + hover * slot + slot / 2} y1=${T} y2=${H - B} />`}
+    </svg>
+    <div class="y-labels">${ticks.map((t) => html`<span style=${`top:${(y(t) / H) * 100}%`}>${nf(t)}</span>`)}</div>
+    <div class="x-labels">${xLabels.map((i) => html`<span style=${`left:${((L + i * slot + slot / 2) / W) * 100}%`}>${shortDay(data[i].day)}</span>`)}</div>
+    ${h && html`<div class="tip" style=${`left:${((L + hover * slot + slot / 2) / W) * 100}%`}>
+      <b>${shortDay(h.day)}</b>
+      ${series.map((s) => html`<div class="tip-row"><i style=${`background:${s.color}`}></i>${s.label}<span>${nf(h[s.key])}</span></div>`)}
+    </div>`}
+  </div>`;
+}
+
+function Legend({ series }) {
+  return html`<div class="legend">${series.map((s) => html`<span><i style=${`background:${s.color}`}></i>${s.label}</span>`)}</div>`;
+}
+
+function BarList({ rows, valueLabel = "visits", tag }) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return html`<div class="barlist">${rows.map((r) => html`<div class="bl-row">
+    <div class="bl-bar" style=${`width:${(r.value / max) * 100}%`}></div>
+    <span class="bl-name">${r.name}${tag && tag(r)}</span>
+    <span class="bl-val" title=${`${nf(r.value)} ${valueLabel}`}>${nf(r.value)}</span>
+  </div>`)}</div>`;
+}
+
+const PEOPLE = [{ key: "visitors", label: "Visitors", color: "var(--s-blue)" }];
+const AI_SERIES = [
+  { key: "fromAi", label: "Sent you visitors", color: "var(--s-blue)" },
+  { key: "aiLive", label: "Looked you up", color: "var(--s-orange)" },
+  { key: "aiCrawl", label: "Crawled your site", color: "var(--s-aqua)" },
+];
+
+function StatsPage({ ctx }) {
+  const [days, setDays] = useState(() => Number(store.get("stats-days")) || 30);
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [table, setTable] = useState(false);
+  useEffect(() => {
+    store.set("stats-days", String(days));
+    setErr("");
+    api(`stats?days=${days}`).then(setData).catch((e) => setErr(e.message));
+  }, [days]);
+  const series = (data?.series || []).map((d) => ({ ...d, aiCrawl: d.aiIndex + d.aiTrain }));
+  const t = data?.totals;
+  const empty = data && !data.trackingSince;
+  return html`
+    <div class="bar">
+      <h1>Stats</h1>
+      <div class="grow"></div>
+      <div class="seg wide" role="group" aria-label="Time range">
+        ${STAT_RANGES.map(([d, label]) => html`<button class=${days === d ? "on" : ""} aria-pressed=${days === d} onClick=${() => setDays(d)}>${label}</button>`)}
+      </div>
+    </div>
+    <div class="scroll pad">
+      <div class="stats">
+        ${err && html`<div class="empty"><h2>Couldn't load stats</h2><p>${err}</p></div>`}
+        ${!data && !err && html`<p class="muted-sm">Loading…</p>`}
+        ${data && html`
+          <p class="muted-sm">${empty ? "Counting starts now — visits will show up here as they happen." : `Counting since ${shortDay(data.trackingSince)} · ${shortDay(data.start)} – ${shortDay(data.end)}`}</p>
+          <div class="tiles">
+            <div class="tile"><span class="t-label">Visitors</span><b>${nf(t.visitors)}</b><span class="t-sub">${nf(t.views)} page views</span></div>
+            <div class="tile"><span class="t-label">Sent by AI assistants</span><b>${nf(t.fromAi)}</b><span class="t-sub">Visits from ChatGPT, Perplexity, Gemini…</span></div>
+            <div class="tile"><span class="t-label">AI looked you up</span><b>${nf(t.aiLive)}</b><span class="t-sub">An assistant read your site while answering someone</span></div>
+            <div class="tile"><span class="t-label">AI crawler visits</span><b>${nf(t.aiCrawl)}</b><span class="t-sub">Reading your site so AI knows about you</span></div>
+          </div>
+
+          <section class="card-sec">
+            <div class="sec-top"><h3>People per day</h3><button class="link-btn" onClick=${() => setTable(!table)}>${table ? "Show charts" : "Show as table"}</button></div>
+            ${table
+              ? html`<div class="stat-table"><table><thead><tr><th>Day</th><th>Visitors</th><th>Views</th><th>Sent by AI</th><th>Looked up</th><th>Crawled</th></tr></thead>
+                  <tbody>${[...series].reverse().map((d) => html`<tr><td>${shortDay(d.day)}</td><td>${nf(d.visitors)}</td><td>${nf(d.views)}</td><td>${nf(d.fromAi)}</td><td>${nf(d.aiLive)}</td><td>${nf(d.aiCrawl)}</td></tr>`)}</tbody></table></div>`
+              : html`<${DayBars} data=${series} series=${PEOPLE} label="Visitors per day" />`}
+          </section>
+
+          ${!table && html`<section class="card-sec">
+            <div class="sec-top"><h3>AI activity per day</h3></div>
+            <${Legend} series=${AI_SERIES} />
+            <${DayBars} data=${series} series=${AI_SERIES} label="AI activity per day: visitors sent by AI assistants, live look-ups, and crawler visits" />
+          </section>`}
+
+          <div class="two-col">
+            <section class="card-sec">
+              <h3>Where visitors came from</h3>
+              ${data.sources.length ? html`<${BarList} rows=${data.sources.map((s) => ({ name: s.name, value: s.views, ai: s.ai }))} valueLabel="page views" tag=${(r) => (r.ai ? html` <span class="ai-tag">AI</span>` : null)} />` : html`<p class="muted-sm">No visitors yet.</p>`}
+            </section>
+            <section class="card-sec">
+              <h3>Top pages</h3>
+              ${data.pages.length ? html`<${BarList} rows=${data.pages.map((p) => ({ name: p.path, value: p.views }))} valueLabel="page views" />` : html`<p class="muted-sm">No page views yet.</p>`}
+            </section>
+          </div>
+
+          <section class="card-sec">
+            <h3>AI assistants & search engines</h3>
+            ${data.bots.length
+              ? html`<div class="bots">${data.bots.map((b) => html`<div class="bot-row"><span class="bl-name">${b.name}</span><span class="bot-kind">${BOT_KIND[b.kind] || b.kind}</span><span class="bl-val">${nf(b.views)}</span></div>`)}</div>`
+              : html`<p class="muted-sm">None yet.</p>`}
+            <p class="hint">“Looked you up” means an assistant like ChatGPT opened your site while answering someone's question — the closest sign that you came up in a conversation. Nobody can see conversations that never reach your site.</p>
+          </section>`}
       </div>
     </div>`;
 }
