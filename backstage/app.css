@@ -211,6 +211,15 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .foot .note { color: var(--muted); font-size: 13px; flex: 1; }
 .foot .note.err { color: #fca5a5; }
 
+.etabs {
+  position: sticky; top: -18px; z-index: 3; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none;
+  margin: 0 -18px; padding: 8px 18px; background: var(--panel); border-bottom: 1px solid #2c2c2c;
+}
+.etabs::-webkit-scrollbar { display: none; }
+.etabs button { position: relative; flex: none; padding: 7px 14px; border-radius: 999px; color: var(--muted); font-size: 14px; font-weight: 500; white-space: nowrap; }
+.etabs button.on { background: var(--card-hover); color: var(--ink); }
+.etabs .dot { position: absolute; top: 6px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--gold); }
+.textarea { min-height: 0; max-height: 420px; }
 .gallery { display: flex; gap: 10px; flex-wrap: wrap; }
 .thumb { position: relative; width: 120px; height: 96px; border-radius: 10px; overflow: hidden; background: #1d1d1d; border: 1px solid #333; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; }
@@ -398,6 +407,9 @@ audio { width: 100%; height: 36px; }
   .foot .note { font-size: 12px; }
   .modal { padding: 18px; }
   .item .line .t-title { flex-basis: 100% !important; }
+  .etabs { top: -14px; margin: 0 -14px; padding: 8px 14px; }
+  .etabs button { padding: 7px 10px; font-size: 14px; }
+  .etabs { gap: 0; }
   .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
 }
 @media (max-width: 360px) {

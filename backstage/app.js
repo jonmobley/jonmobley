@@ -602,8 +602,16 @@ function Text({ value, onInput, ...rest }) {
   return html`<input class="input" value=${value ?? ""} onInput=${(e) => onInput(e.target.value)} ...${rest} />`;
 }
 
-function Area({ value, onInput, rows = 3, ...rest }) {
-  return html`<textarea class="textarea" rows=${rows} value=${value ?? ""} onInput=${(e) => onInput(e.target.value)} ...${rest}></textarea>`;
+// Text boxes start small and grow with what's typed (up to a point, then scroll).
+function Area({ value, onInput, rows = 2, ...rest }) {
+  const ref = useRef();
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    if (el.scrollHeight) el.style.height = `${Math.min(el.scrollHeight + 2, 420)}px`;
+  }, [value]);
+  return html`<textarea ref=${ref} class="textarea" rows=${rows} value=${value ?? ""} onInput=${(e) => onInput(e.target.value)} ...${rest}></textarea>`;
 }
 
 function TagInput({ value, onChange, placeholder, suggestions = [] }) {
@@ -684,8 +692,19 @@ function Links({ links, onChange }) {
   </div>`;
 }
 
+// The trick page is split into tabs so it never turns into one long scroll.
+// Each entry: [key, label, does this tab hold anything?]
+const TRICK_TABS = [
+  ["overview", "Overview", (t) => t.images.length || t.effect || t.notes],
+  ["perform", "Performance", (t) => t.method || t.props || t.reset],
+  ["tags", "Tags & links", (t) => t.audiences.length || t.tags.length || t.links.length],
+  ["buying", "Buying", (t) => t.cost != null || t.source || t.purchase_url],
+];
+
 function TrickEditor({ id, ctx }) {
   const { draft, set, dirty, setDirty, isNew, missing } = useDraft(id, ctx.tricks, BLANK_TRICK);
+  const [tab, setTabState] = useState(() => (TRICK_TABS.some(([k]) => k === store.get("trick-tab")) ? store.get("trick-tab") : "overview"));
+  const setTab = (k) => { setTabState(k); store.set("trick-tab", k); };
   const { busy, err, save, remove } = useSaver({ path: "tricks", id, draft, isNew, setDirty, ctx, which: "tricks", back: "tricks", what: "trick" });
   useLeaveGuard(dirty);
   if (missing) return html`<${BackBar} to="tricks" label="Tricks" /><div class="empty"><h2>Trick not found</h2><p>It may have been deleted.</p></div>`;
@@ -714,28 +733,29 @@ function TrickEditor({ id, ctx }) {
           <${Field} label="WHERE IT LIVES"><${Text} value=${draft.location} placeholder="Case, shelf, bag…" onInput=${(v) => set({ location: v })} /><//>
         </div>
         <datalist id="trick-categories">${allCategories.map((c) => html`<option value=${c} />`)}</datalist>
-        <div class="section">
-          <h3>Photos & files</h3>
-          <${Gallery} ctx=${ctx} keys=${draft.images} onChange=${(images) => set({ images })} />
+        <div class="etabs" role="tablist">
+          ${TRICK_TABS.map(([k, label, filled]) => html`<button role="tab" aria-selected=${tab === k} class=${tab === k ? "on" : ""} onClick=${() => setTab(k)}>
+            ${label}${tab !== k && filled(draft) ? html`<i class="dot" aria-label="has content"></i>` : null}
+          </button>`)}
         </div>
-        <div class="section">
-          <h3>The trick</h3>
+        ${tab === "overview" && html`
+          <div class="section">
+            <${Gallery} ctx=${ctx} keys=${draft.images} onChange=${(images) => set({ images })} />
+          </div>
           <${Field} label="EFFECT — WHAT THEY SEE"><${Area} value=${draft.effect} onInput=${(v) => set({ effect: v })} /><//>
-          <${Field} label="METHOD — PRIVATE"><${Area} rows="4" value=${draft.method} onInput=${(v) => set({ method: v })} /><//>
-          <${Field} label="PROPS TO PACK"><${Area} rows="2" value=${draft.props} onInput=${(v) => set({ props: v })} /><//>
-          <${Field} label="PREP & RESET"><${Area} rows="2" value=${draft.reset} onInput=${(v) => set({ reset: v })} /><//>
-        </div>
-        <div class="section">
-          <h3>Audiences & tags</h3>
+          <${Field} label="NOTES"><${Area} value=${draft.notes} onInput=${(v) => set({ notes: v })} /><//>
+          ${usedIn.length > 0 && html`<div class="section"><h3>In set lists</h3>
+            <div class="chips">${usedIn.map((s) => html`<button class="chip" onClick=${() => go(`sets/${s.id}`)}>${s.name}</button>`)}</div>
+          </div>`}`}
+        ${tab === "perform" && html`
+          <${Field} label="METHOD — PRIVATE"><${Area} rows="3" value=${draft.method} onInput=${(v) => set({ method: v })} /><//>
+          <${Field} label="PROPS TO PACK"><${Area} value=${draft.props} onInput=${(v) => set({ props: v })} /><//>
+          <${Field} label="PREP & RESET"><${Area} value=${draft.reset} onInput=${(v) => set({ reset: v })} /><//>`}
+        ${tab === "tags" && html`
           <${Field} label="GOOD FOR"><${TagInput} value=${draft.audiences} suggestions=${allAudiences} placeholder="corporate, family, kids…" onChange=${(audiences) => set({ audiences })} /><//>
           <${Field} label="TAGS"><${TagInput} value=${draft.tags} suggestions=${allTags} placeholder="cards, needs batteries, opener…" onChange=${(tags) => set({ tags })} /><//>
-        </div>
-        <div class="section">
-          <h3>Links</h3>
-          <${Links} links=${draft.links} onChange=${(links) => set({ links })} />
-        </div>
-        <div class="section">
-          <h3>Buying</h3>
+          <div class="section"><h3>Links</h3><${Links} links=${draft.links} onChange=${(links) => set({ links })} /></div>`}
+        ${tab === "buying" && html`
           <div class="cols">
             <${Field} label="PRICE ($)"><${Text} type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value=${draft.cost ?? ""} onInput=${(v) => set({ cost: v === "" ? null : Number(v) })} /><//>
             <${Field} label="SOURCE / MAKER"><${Text} value=${draft.source} placeholder="Dealer or creator" onInput=${(v) => set({ source: v })} /><//>
@@ -746,14 +766,7 @@ function TrickEditor({ id, ctx }) {
               ${draft.purchase_url && html`<a class="btn" href=${/^https?:/.test(draft.purchase_url) ? draft.purchase_url : `https://${draft.purchase_url}`} target="_blank" rel="noopener"><${Icon} name="external" />${draft.status === "wishlist" ? "Buy" : "Open"}</a>`}
             </div>
           <//>
-          <p class="hint">Price and purchase link are private. They're never included in share links.</p>
-        </div>
-        <div class="section">
-          <${Field} label="NOTES"><${Area} value=${draft.notes} onInput=${(v) => set({ notes: v })} /><//>
-        </div>
-        ${usedIn.length > 0 && html`<div class="section"><h3>In set lists</h3>
-          <div class="chips">${usedIn.map((s) => html`<button class="chip" onClick=${() => go(`sets/${s.id}`)}>${s.name}</button>`)}</div>
-        </div>`}
+          <p class="hint">Price and purchase link are private. They're never included in share links.</p>`}
       </div>
     </div>
     <${SaveBar} dirty=${dirty} busy=${busy} err=${err} isNew=${isNew} sample=${!!draft.demo} onSave=${save} onDelete=${remove} what="trick" />`;
