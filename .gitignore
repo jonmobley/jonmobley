@@ -6,3 +6,6 @@
 e2e/.auth/
 test-results/
 playwright-report/
+node_modules/
+.wrangler/
+.dev.vars

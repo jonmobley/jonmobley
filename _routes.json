@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "include": [
+    "/api/*",
+    "/functions/*",
+    "/server/*",
+    "/migrations/*",
+    "/scripts/*",
+    "/e2e/*",
+    "/node_modules/*",
+    "/wrangler.toml",
+    "/tsconfig.json",
+    "/package.json",
+    "/package-lock.json",
+    "/playwright.config.ts",
+    "/_routes.json"
+  ],
+  "exclude": []
+}

@@ -1,14 +1,24 @@
 # jonmobley.com
 
-Static site: plain HTML, CSS and JS. No framework, no build step, no database, no sign-in.
+Public site: plain HTML, CSS and JS, no build step. Plus **/backstage**: Jon's private, password-protected trick library (tricks, set lists, playlists, chat assistant), backed by Cloudflare Pages Functions + D1 + R2.
 
 ## About this app
 @ABOUT-THIS-APP.md
 
 ## Run, build, test
-- Run: serve the repo root with any static server, e.g. `npx wrangler pages dev .` (Studio shows its own preview).
-- Build: none. The files in the repo are what gets published.
+- Run: `npm ci` once, then `npx wrangler pages dev .` (serves the site and runs `functions/`). Local data lives in `.wrangler/`; first time run `npx wrangler d1 migrations apply jonmobley-backstage --local` and `node scripts/set-password.mjs --local`.
+- Chat locally: put `ANTHROPIC_API_KEY=...` in `.dev.vars` (gitignored). `ANTHROPIC_BASE_URL` there can point at a fake Claude server for tests.
+- Build: none for the pages. Wrangler bundles `functions/` (and `server/`, which they import) at deploy, so `node_modules` must be installed (`npm ci`) before `wrangler pages deploy`.
+- Typecheck: `npx tsc -p .` (functions + server).
 - Test: `studio-test run` (Playwright, Chromium + WebKit). `studio-test shots / /booking/ ...` takes screenshots.
+
+## Backstage (/backstage)
+- `backstage/`: the app page (`index.html`, `app.js`, `app.css`). No build: Preact + htm vendored in `backstage/vendor/preact-htm.js`.
+- `functions/api/[[path]].ts`: every `/api/*` route. `functions/_middleware.ts` + `_routes.json` 404 the repo's source files (`server/`, `wrangler.toml`, `package.json`, …) so they're never served.
+- `server/`: `auth.ts` (one password, PBKDF2 hash + HMAC session cookie, both in the `settings` table; login rate limit), `data.ts` (tricks/set lists/playlists, cleaning rules, R2 uploads), `chat.ts` (Claude `claude-opus-5-5` with tools over the library; streams NDJSON; transcripts in R2 `chats/<id>.json`).
+- Data: D1 `jonmobley-backstage` (binding `DB`, schema in `migrations/`), R2 `jonmobley-backstage` (binding `MEDIA`: `media/<uuid>.<ext>` uploads, `chats/`). Config in `wrangler.toml`.
+- Secrets: `ANTHROPIC_API_KEY` (Pages secret). Reset the password: `node scripts/set-password.mjs --remote`.
+- Writes need the `X-Backstage: 1` header (CSRF guard); everything but session/login needs the cookie.
 
 ## Folders
 - Each page is a folder with an `index.html`: `booking/`, `puzzle/`, `coloring-book/`, `locked/`, `seussical/`. The home page is `index.html` at the root.
@@ -20,8 +30,9 @@ Static site: plain HTML, CSS and JS. No framework, no build step, no database, n
 - `js/booking.js` origin checks and the `embedResize` name on the /booking iframe (they must match nxsportal).
 - `_headers` security rules and the pages.dev noindex rule.
 - Celebrity quotes, TV credits, the copyright line, and the phone/email in the JSON-LD block in `index.html`.
-- `.wrangler/`, `e2e/.auth/`, `test-results/` are local and not committed.
+- `.wrangler/`, `.dev.vars`, `node_modules/`, `e2e/.auth/`, `test-results/` are local and not committed.
+- Never run tests that write to the live Backstage database; e2e checks stay signed out.
 - Never submit the real booking form from a test.
 
 ## Testing
-Browser tests live in `e2e/` (`smoke.spec.ts`: one read-only check per page; `auth.setup.ts`: no sign-in on this site, so it saves an empty session). Config is `playwright.config.ts`. `package.json` exists only for these tests. Embeds (Wistia, Bunny, nxsportal) are checked for presence, never played or submitted.
+Browser tests live in `e2e/` (`smoke.spec.ts`: one read-only check per page; `backstage.spec.ts`: signed-out checks of /backstage and the hidden source files; `auth.setup.ts`: no sign-in on this site, so it saves an empty session). Config is `playwright.config.ts`. `package.json` exists only for these tests. Embeds (Wistia, Bunny, nxsportal) are checked for presence, never played or submitted.

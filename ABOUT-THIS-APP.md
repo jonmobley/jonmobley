@@ -7,6 +7,7 @@ jonmobley.com: the website for Jon Mobley, a magician, comedian and emcee based 
 - **/puzzle** and **/coloring-book**: videos that reveal the secret of a trick (Bunny video).
 - **/locked**: youth breakout discussion guide for the LOCKED keynote series on Romans 8.
 - **/seussical**: rehearsal and performance calendar for a Seussical production.
+- **/backstage**: Jon's private area (password sign-in, hidden from Google). His trick inventory (photos, files, links, effect/method/props/reset notes, where each lives), set lists (running order, timings, a big-text Show mode that also prints), playlists (music and sound cues with links or uploaded audio), and a chat assistant that can read and change all of it, including adding a trick from a photo. Layout copies Moxie Studio: chat on the left, library on the right; on a phone, Chat is a tab.
 
 ## Who it's for
 Event planners booking a show (corporate events, private parties), plus audience members sent to a specific page after a show or talk (trick reveals, LOCKED, Seussical cast).
@@ -26,10 +27,11 @@ Fonts (Google Fonts): Montserrat (main text), Raleway (booking button, contact s
 Voice: short, confident and playful. Labels are in all caps ("BOOKING INFO", "GET IN TOUCH"). The copy leans on proof from others (TV credits, celebrity reactions) more than self-praise. Tagline: "Laugh and Be Amazed."
 
 ## Key decisions
-- Plain HTML/CSS/JS only. No framework, no build step, no database.
-- Hosted on Cloudflare Pages (guess — please confirm). `_headers` sets security and caching rules; `*.pages.dev` preview addresses are hidden from Google.
+- Public pages: plain HTML/CSS/JS only, no framework, no build step.
+- /backstage is the only part with a database (Cloudflare D1 + R2) and sign-in. One owner, one password; no visitor accounts.
+- Hosted on Cloudflare Pages (project `jonmobley`, direct upload). `_headers` sets security and caching rules; `*.pages.dev` preview addresses are hidden from Google.
 - Bookings go through the nxsportal form embedded on /booking. We don't run our own form or store visitor data.
-- No sign-in and no payments on the site.
+- No visitor sign-in and no payments on the site.
 - Contact details used across the site: booking@jonmobley.com, 317-426-1270, Facebook/Instagram @mobleymagic, YouTube @jonmobley.
 - The home video uses Wistia; trick-reveal videos use Bunny (iframe.mediadelivery.net).
 - The Chicago Magic Lounge feature is a still image, not a video (the owner chose this).

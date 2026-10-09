@@ -1,0 +1,16 @@
+# Cloudflare Pages settings for jonmobley.com. The public site is static files;
+# /backstage (Jon's private trick library) talks to the functions in functions/.
+name = "jonmobley"
+pages_build_output_dir = "."
+compatibility_date = "2026-08-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "jonmobley-backstage"
+database_id = "f5261c43-4c51-4c04-a822-082818e106dc"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "jonmobley-backstage"
