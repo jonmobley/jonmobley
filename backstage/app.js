@@ -1698,8 +1698,9 @@ function FileUploadButton({ ctx, extra, label = "Upload", primary = true }) {
   </button>`;
 }
 
-function FileRow({ file, ctx, showSet = true }) {
-  const [open, setOpen] = useState(false);
+function FileRow({ file, ctx, showSet = true, startOpen = false, onClose }) {
+  const [open, setOpenState] = useState(startOpen);
+  const setOpen = (v) => { setOpenState(v); if (!v && onClose) onClose(); };
   const [name, setName] = useState(file.name);
   const [notes, setNotes] = useState(file.notes);
   useEffect(() => { setName(file.name); setNotes(file.notes); }, [file.name, file.notes]);
@@ -1719,6 +1720,7 @@ function FileRow({ file, ctx, showSet = true }) {
     if (!confirm(`Delete “${file.name}”? The file itself is deleted too.`)) return;
     await api(`files/${file.id}`, { method: "DELETE" }).catch((e) => ctx.setToast(e.message));
     await ctx.load(["files"]);
+    if (onClose) onClose();
   };
   const url = file.key ? mediaUrl(file.key) : null;
   return html`<div class=${`frow ${open ? "open" : ""}`}>
@@ -1757,7 +1759,26 @@ function FileRow({ file, ctx, showSet = true }) {
   </div>`;
 }
 
+/** Grid view: a big preview per file; tapping opens its details. */
+function FileCard({ file, onOpen, ctx }) {
+  const url = file.key ? mediaUrl(file.key) : null;
+  const exp = expiryInfo(file.expires);
+  return html`<button class="card fcard" onClick=${() => (file.demo ? ctx.setToast("That's a sample. Upload your own files and the samples go away.") : onOpen(file))}>
+    <div class="cover">
+      ${url && isPreviewable(file) ? html`<img src=${url} alt="" loading="lazy" class="contain" />` : html`<span class="fext big">${fileExt(file)}</span>`}
+    </div>
+    <div class="meta">
+      <div class="name">${file.name}</div>
+      <div class="sub">${[file.folder, fmtSize(file.size)].filter(Boolean).join(" · ")}</div>
+      <div class="pills">${exp ? html`<span class=${`exp ${exp.cls}`}>${exp.text}</span>` : null}<${SampleTag} item=${file} /></div>
+    </div>
+  </button>`;
+}
+
 function FilesPage({ ctx }) {
+  const [view, setView] = useState(() => store.get("file-view") || "list");
+  const [opened, setOpened] = useState(null);
+  useEffect(() => { store.set("file-view", view); }, [view]);
   const [q, setQ] = useState("");
   const [folder, setFolder] = useState(() => store.get("file-folder") || "");
   const [over, setOver] = useState(false);
@@ -1787,6 +1808,11 @@ function FilesPage({ ctx }) {
         ${expiring > 0 && html`<button class=${`chip warn ${folder === "__expiring" ? "on" : ""}`} onClick=${() => setFolder(folder === "__expiring" ? "" : "__expiring")}>Expiring · ${expiring}</button>`}
         ${folders.map((f) => html`<button class=${`chip ${folder === f ? "on" : ""}`} onClick=${() => setFolder(folder === f ? "" : f)}>${f}</button>`)}
       </div>
+      <div class="grow"></div>
+      <div class="seg" role="group" aria-label="View">
+        <button class=${view === "grid" ? "on" : ""} aria-label="Grid view" aria-pressed=${view === "grid"} onClick=${() => setView("grid")}><${Icon} name="grid" /></button>
+        <button class=${view === "list" ? "on" : ""} aria-label="List view" aria-pressed=${view === "list"} onClick=${() => setView("list")}><${Icon} name="rows" /></button>
+      </div>
     </div>
     <div class=${`scroll pad ${over ? "drop-over" : ""}`}
       onDragOver=${(e) => { if ([...e.dataTransfer.types].includes("Files")) { e.preventDefault(); setOver(true); } }}
@@ -1794,7 +1820,15 @@ function FilesPage({ ctx }) {
       onDrop=${(e) => { e.preventDefault(); setOver(false); uploadFiles(ctx, [...e.dataTransfer.files], extra); }}>
       <${SampleNote} list=${files} what="files" newPath="files" />
       ${files && shown.length === 0 && html`<div class="empty"><h2>${q || folder ? "No matches" : "No files yet"}</h2><p>${q || folder ? "Nothing fits that search." : "Upload your logo, insurance policies, contracts or anything else, or drag files here."}</p></div>`}
-      <div class="flist">${shown.map((f) => html`<${FileRow} key=${f.id} file=${f} ctx=${ctx} />`)}</div>
+      ${view === "grid"
+        ? html`<div class="grid">${shown.map((f) => html`<${FileCard} key=${f.id} file=${f} ctx=${ctx} onOpen=${setOpened} />`)}</div>`
+        : html`<div class="flist">${shown.map((f) => html`<${FileRow} key=${f.id} file=${f} ctx=${ctx} />`)}</div>`}
+      ${opened && (() => {
+        const live = (ctx.files || []).find((f) => f.id === opened.id);
+        return live && html`<div class="modal-wrap" onClick=${(e) => e.target === e.currentTarget && setOpened(null)}>
+          <div class="modal file-modal"><${FileRow} file=${live} ctx=${ctx} startOpen=${true} onClose=${() => setOpened(null)} /></div>
+        </div>`;
+      })()}
       <p class="hint drop-hint">Tip: drag files onto this page to upload them${folder && folder !== "__expiring" ? ` into ${folder}` : ""}.</p>
     </div>`;
 }
