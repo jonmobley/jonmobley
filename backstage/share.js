@@ -71,7 +71,9 @@ function Setlist({ s }) {
   const [open, setOpen] = useState({});
   const total = s.items.reduce((n, i) => n + (i.duration_min || 0), 0);
   const packing = s.items.filter((i) => i.trick && (i.trick.props || i.trick.location));
-  const packed = packing.filter((_, n) => ticks[`p${n}`]).length;
+  const gear = s.equipment || [];
+  const packed = packing.filter((_, n) => ticks[`p${n}`]).length + gear.filter((_, n) => ticks[`g${n}`]).length;
+  const toPack = packing.length + gear.length;
   return html`
     <header class="hero">
       <h1>${s.name}</h1>
@@ -106,13 +108,17 @@ function Setlist({ s }) {
       </ol>
     </section>
 
-    ${packing.length > 0 && html`<section>
-      <div class="sec-head"><h2>Packing list</h2><span class="muted">${packed} of ${packing.length}</span>
+    ${toPack > 0 && html`<section>
+      <div class="sec-head"><h2>Packing list</h2><span class="muted">${packed} of ${toPack}</span>
         ${packed > 0 && html`<button class="link" onClick=${clear}>Clear</button>`}</div>
       <div class="card">
         ${packing.map((i, n) => html`<label class=${`check ${ticks[`p${n}`] ? "done" : ""}`}>
           <input type="checkbox" checked=${!!ticks[`p${n}`]} onChange=${() => toggle(`p${n}`)} />
           <span><b>${i.name}</b>${i.trick.props && html`<br />${i.trick.props}`}${i.trick.location && html`<br /><span class="muted">From: ${i.trick.location}</span>`}</span>
+        </label>`)}
+        ${gear.map((g, n) => html`<label class=${`check ${ticks[`g${n}`] ? "done" : ""}`}>
+          <input type="checkbox" checked=${!!ticks[`g${n}`]} onChange=${() => toggle(`g${n}`)} />
+          <span><b>${g.name}${g.quantity > 1 ? ` ×${g.quantity}` : ""}</b>${g.make_model && html`<br />${g.make_model}`}${g.location && html`<br /><span class="muted">From: ${g.location}</span>`}</span>
         </label>`)}
       </div>
     </section>`}

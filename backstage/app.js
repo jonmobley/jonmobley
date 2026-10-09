@@ -1,7 +1,7 @@
 // Backstage: Jon's private trick library, set lists and playlists, with a chat assistant.
 // Plain ES module, no build step. Preact + htm are vendored in ./vendor.
 import { html, render, useState, useEffect, useRef, useMemo, useCallback } from "./vendor/preact-htm.js";
-import { DEMO_TRICKS, DEMO_SETLISTS, DEMO_PLAYLISTS, adopt } from "./demo.js";
+import { DEMO_TRICKS, DEMO_SETLISTS, DEMO_PLAYLISTS, DEMO_EQUIPMENT, DEMO_TASKS, DEMO_NOTES, adopt } from "./demo.js";
 
 // ---------- small helpers ----------
 
@@ -160,6 +160,10 @@ const PATHS = {
   wand: "M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M15 9h.01M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5",
   file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",
   grid: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
+  box: "M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8",
+  checkbox: "M9 11l3 3 8-8M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
+  note: "M4 4h16v12l-6 4H4zM14 20v-4h6M8 9h8M8 13h5",
+  pin: "M12 17v5M8 3h8l-1 6 3 4H6l3-4z",
   rows: "M3 5h18M3 12h18M3 19h18",
   share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13",
 };
@@ -236,11 +240,24 @@ function Login({ session, onIn }) {
   </div>`;
 }
 
+// The six library sections: [route, desktop label, phone label, icon].
+const SECTIONS = [
+  ["tricks", "Tricks", "Tricks", "wand"],
+  ["gear", "Equipment", "Gear", "box"],
+  ["sets", "Set lists", "Sets", "list"],
+  ["playlists", "Playlists", "Music", "music"],
+  ["tasks", "Tasks", "Tasks", "checkbox"],
+  ["notes", "Notes", "Notes", "note"],
+];
+
 function Backstage({ onOut }) {
   const route = useHashRoute();
   const [tricks, setTricks] = useState(null);
   const [setlists, setSetlists] = useState(null);
   const [playlists, setPlaylists] = useState(null);
+  const [equipment, setEquipment] = useState(null);
+  const [tasks, setTasks] = useState(null);
+  const [notes, setNotes] = useState(null);
   const [pane, setPane] = useState(() => (matchMedia("(max-width: 900px)").matches ? "lib" : "both"));
   const [settings, setSettings] = useState(false);
   const [toast, setToast] = useState("");
@@ -248,10 +265,14 @@ function Backstage({ onOut }) {
 
   const load = useCallback(async (which) => {
     const all = !which || which.length === 0;
+    const want = (k) => all || which.includes(k);
     const jobs = [];
-    if (all || which.includes("tricks")) jobs.push(api("tricks").then(setTricks));
-    if (all || which.includes("setlists")) jobs.push(api("setlists").then(setSetlists));
-    if (all || which.includes("playlists")) jobs.push(api("playlists").then(setPlaylists));
+    if (want("tricks")) jobs.push(api("tricks").then(setTricks));
+    if (want("setlists")) jobs.push(api("setlists").then(setSetlists));
+    if (want("playlists")) jobs.push(api("playlists").then(setPlaylists));
+    if (want("equipment")) jobs.push(api("equipment").then(setEquipment));
+    if (want("tasks")) jobs.push(api("tasks").then(setTasks));
+    if (want("notes")) jobs.push(api("notes").then(setNotes));
     await Promise.all(jobs).catch((e) => setToast(e.message));
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -267,33 +288,43 @@ function Backstage({ onOut }) {
     tricks: sample(tricks, DEMO_TRICKS),
     setlists: sample(setlists, DEMO_SETLISTS),
     playlists: sample(playlists, DEMO_PLAYLISTS),
-    real: { tricks, setlists, playlists },
-    load, setToast, setShow,
+    equipment: sample(equipment, DEMO_EQUIPMENT),
+    tasks: sample(tasks, DEMO_TASKS),
+    notes: sample(notes, DEMO_NOTES),
+    real: { tricks, setlists, playlists, equipment, tasks, notes },
+    setTasks, load, setToast, setShow,
   };
   const [section, id] = route;
-  const tab = ["sets", "playlists"].includes(section) ? section : "tricks";
+  const tab = SECTIONS.some(([k]) => k === section) ? section : "tricks";
 
   let view;
   if (section === "sets" && id) view = html`<${SetlistEditor} key=${id} id=${id} ctx=${ctx} />`;
   else if (section === "sets") view = html`<${SetlistList} ctx=${ctx} />`;
   else if (section === "playlists" && id) view = html`<${PlaylistEditor} key=${id} id=${id} ctx=${ctx} />`;
   else if (section === "playlists") view = html`<${PlaylistList} ctx=${ctx} />`;
+  else if (section === "gear" && id) view = html`<${GearEditor} key=${id} id=${id} ctx=${ctx} />`;
+  else if (section === "gear") view = html`<${GearList} ctx=${ctx} />`;
+  else if (section === "tasks") view = html`<${TaskPage} ctx=${ctx} />`;
+  else if (section === "notes" && id) view = html`<${NoteEditor} key=${id} id=${id} ctx=${ctx} />`;
+  else if (section === "notes") view = html`<${NoteList} ctx=${ctx} />`;
   else if (section === "tricks" && id) view = html`<${TrickEditor} key=${id} id=${id} ctx=${ctx} />`;
   else view = html`<${TrickList} ctx=${ctx} />`;
 
   const setTab = (t) => { go(t); if (pane === "chat") setPane("lib"); };
+  const openTasks = (tasks || []).filter((t) => !t.done).length;
 
   return html`
     <div class="shell">
       <header class="top">
         <div class="brand"><div class="badge">JM</div><span class="word">Backstage</span></div>
         <nav class="tabs">
-          <button class=${`tab ${tab === "tricks" && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab("tricks")}>Tricks</button>
-          <button class=${`tab ${tab === "sets" && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab("sets")}>Set<span class="long"> lists</span></button>
-          <button class=${`tab ${tab === "playlists" && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab("playlists")}>Playlists</button>
-          <button class=${`tab pane-switch ${pane === "chat" ? "on" : ""}`} onClick=${() => setPane("chat")}>Chat</button>
+          ${SECTIONS.map(([k, label]) => html`<button class=${`tab ${tab === k && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab(k)}>
+            ${label}${k === "tasks" && openTasks > 0 ? html`<span class="count-badge">${openTasks}</span>` : null}
+          </button>`)}
         </nav>
+        <span class="phone-title">${pane === "chat" ? "Chat" : SECTIONS.find(([k]) => k === tab)[1]}</span>
         <div class="spacer"></div>
+        <button class=${`ghost chat-toggle ${pane === "chat" ? "on" : ""}`} onClick=${() => setPane(pane === "chat" ? "lib" : "chat")} aria-label="Chat"><${Icon} name="chat" /><span>Chat</span></button>
         <a class="ghost view-site" href="/" target="_blank" rel="noopener"><${Icon} name="external" /><span class="word">View site</span></a>
         <button class="ghost" onClick=${() => setSettings(true)} aria-label="Settings"><${Icon} name="settings" /><span class="word">Settings</span></button>
       </header>
@@ -301,6 +332,12 @@ function Backstage({ onOut }) {
         <${Chat} ctx=${ctx} />
         <section class="stage">${view}</section>
       </main>
+      <nav class="bottombar">
+        ${SECTIONS.map(([k, , short, icon]) => html`<button class=${tab === k && pane !== "chat" ? "on" : ""} onClick=${() => setTab(k)}>
+          <span class="bb-icon"><${Icon} name=${icon} />${k === "tasks" && openTasks > 0 ? html`<i class="bb-badge">${openTasks}</i>` : null}</span>
+          <span>${short}</span>
+        </button>`)}
+      </nav>
     </div>
     ${show && html`<${ShowMode} ...${show} onClose=${() => setShow(null)} />`}
     ${settings && html`<${Settings} onClose=${() => setSettings(false)} onOut=${onOut} />`}
@@ -324,7 +361,7 @@ function Cover({ trick }) {
 function SampleNote({ list, what, newPath }) {
   if (!list?.[0]?.demo) return null;
   return html`<div class="sample-note">
-    <b>These are samples</b> to show how ${what} work. They disappear when you add your own.
+    <b>These are samples</b> to show how this page works. They disappear when you add your own ${what}.
     Open one and press <b>Add to my library</b> to keep it, or <a href=${`#/${newPath}`}>start fresh</a>.
   </div>`;
 }
@@ -497,13 +534,13 @@ function useSaver({ path, id, draft, isNew, setDirty, ctx, which, back, what }) 
 }
 
 // Warn before leaving an editor with unsaved changes.
-function useLeaveGuard(dirty) {
+function useLeaveGuard(dirty, inApp = true) {
   useEffect(() => {
-    unsaved = dirty;
+    if (inApp) unsaved = dirty;
     if (!dirty) return;
     const on = (e) => { e.preventDefault(); e.returnValue = ""; };
     addEventListener("beforeunload", on);
-    return () => { removeEventListener("beforeunload", on); unsaved = false; };
+    return () => { removeEventListener("beforeunload", on); if (inApp) unsaved = false; };
   }, [dirty]);
 }
 
@@ -603,13 +640,13 @@ function Text({ value, onInput, ...rest }) {
 }
 
 // Text boxes start small and grow with what's typed (up to a point, then scroll).
-function Area({ value, onInput, rows = 2, ...rest }) {
+function Area({ value, onInput, rows = 2, max = 420, ...rest }) {
   const ref = useRef();
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
-    if (el.scrollHeight) el.style.height = `${Math.min(el.scrollHeight + 2, 420)}px`;
+    if (el.scrollHeight) el.style.height = `${Math.min(el.scrollHeight + 2, max)}px`;
   }, [value]);
   return html`<textarea ref=${ref} class="textarea" rows=${rows} value=${value ?? ""} onInput=${(e) => onInput(e.target.value)} ...${rest}></textarea>`;
 }
@@ -910,7 +947,7 @@ function useReorder(list, onChange) {
   return { move, props, grip, dragging: dragging !== null };
 }
 
-const BLANK_SET = { name: "", event: "", venue: "", date: "", notes: "", items: [] };
+const BLANK_SET = { name: "", event: "", venue: "", date: "", notes: "", items: [], equipment: [] };
 
 function SetlistEditor({ id, ctx }) {
   const { draft, set, dirty, setDirty, isNew, missing } = useDraft(id, ctx.setlists, BLANK_SET);
@@ -979,7 +1016,16 @@ function SetlistEditor({ id, ctx }) {
             <button class="btn" onClick=${() => setItems([...items, { id: uid(), title: "" }])}><${Icon} name="plus" />Add a bit</button>
           </div>
         </div>
-        <${Field} label="NOTES"><${Area} rows="4" value=${draft.notes} placeholder="Stage size, tech, contact on site…" onInput=${(v) => set({ notes: v })} /><//>
+        <div class="section">
+          <h3>Equipment to bring</h3>
+          <${GearPicker} ctx=${ctx} value=${draft.equipment || []} onChange=${(equipment) => set({ equipment })} />
+        </div>
+        ${!isNew && html`<div class="section">
+          <h3>To do for this show</h3>
+          ${(ctx.tasks || []).filter((t) => t.setlist_id === id).map((t) => html`<${TaskRow} key=${t.id} task=${t} ctx=${ctx} showSet=${false} />`)}
+          ${!draft.demo && html`<${TaskAdd} ctx=${ctx} setlistId=${id} placeholder="Add a task for this show…" />`}
+        </div>`}
+        <${Field} label="NOTES"><${Area} rows="3" value=${draft.notes} placeholder="Stage size, tech, contact on site…" onInput=${(v) => set({ notes: v })} /><//>
       </div>
     </div>
     <${SaveBar} dirty=${dirty} busy=${busy} err=${err} isNew=${isNew} sample=${!!draft.demo} onSave=${save} onDelete=${remove} what="set list" />`;
@@ -1122,6 +1168,447 @@ function AudioUpload({ onAdded, ctx }) {
       setBusy(false);
     }} />
   </button>`;
+}
+
+// ---------- equipment ----------
+
+const GEAR_STATUSES = [
+  ["working", "Working"],
+  ["repair", "Needs repair"],
+  ["wishlist", "Wishlist"],
+  ["retired", "Retired"],
+];
+const gearStatusLabel = (s) => (GEAR_STATUSES.find(([k]) => k === s) || [s, s])[1];
+
+function GearList({ ctx }) {
+  const [q, setQ] = useState(() => store.get("gear-q") || "");
+  const [status, setStatus] = useState(() => store.get("gear-status") || "");
+  const [category, setCategory] = useState(() => store.get("gear-category") || "");
+  useEffect(() => {
+    store.set("gear-q", q || null);
+    store.set("gear-status", status || null);
+    store.set("gear-category", category || null);
+  }, [q, status, category]);
+  const { equipment } = ctx;
+  const categories = useMemo(() => uniqueSorted((equipment || []).map((g) => g.category)), [equipment]);
+  const shown = useMemo(() => {
+    if (!equipment) return [];
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    return equipment.filter((g) => {
+      if (status && g.status !== status) return false;
+      if (category && g.category.toLowerCase() !== category.toLowerCase()) return false;
+      const hay = [g.name, g.category, g.location, g.make_model, g.serial, g.notes, ...g.tags].join(" ").toLowerCase();
+      return words.every((w) => hay.includes(w));
+    });
+  }, [equipment, q, status, category]);
+  const repairs = (ctx.real.equipment || []).filter((g) => g.status === "repair").length;
+
+  return html`
+    <div class="bar">
+      <h1>Equipment</h1>
+      <label class="search"><${Icon} name="search" /><span class="sr">Search equipment</span>
+        <input placeholder="Search gear, models, places…" value=${q} onInput=${(e) => setQ(e.target.value)} />
+      </label>
+      <div class="chips">
+        <button class=${`chip ${!status ? "on" : ""}`} onClick=${() => setStatus("")}>All</button>
+        ${GEAR_STATUSES.map(([k, label]) => html`<button class=${`chip ${status === k ? "on" : ""}`} onClick=${() => setStatus(status === k ? "" : k)}>
+          ${label}${k === "repair" && repairs ? ` · ${repairs}` : ""}</button>`)}
+      </div>
+      <div class="grow"></div>
+      <button class="btn primary" onClick=${() => go("gear/new")}><${Icon} name="plus" />New item</button>
+    </div>
+    <div class="filters">
+      <select class=${`select mini ${category ? "set" : ""}`} value=${category} onChange=${(e) => setCategory(e.target.value)} aria-label="Category">
+        <option value="">All categories</option>
+        ${categories.map((c) => html`<option value=${c}>${c}</option>`)}
+      </select>
+      <span class="count">${equipment ? `${shown.length} ${shown.length === 1 ? "item" : "items"}` : ""}</span>
+    </div>
+    <div class="scroll pad">
+      <${SampleNote} list=${equipment} what="equipment" newPath="gear/new" />
+      ${!equipment
+        ? null
+        : shown.length === 0
+          ? html`<div class="empty"><h2>No matches</h2><p>Nothing fits those filters.</p></div>`
+          : html`<div class="tlist">
+              ${shown.map((g) => html`<button class="trow" onClick=${() => go(`gear/${g.id}`)}>
+                <div class="tthumb"><${Cover} trick=${g} /></div>
+                <div class="tmain">
+                  <div class="name">${g.name}${g.quantity > 1 ? html` <span class="qty">×${g.quantity}</span>` : null} <${SampleTag} item=${g} /></div>
+                  <div class="sub">${[g.category, g.make_model, g.location].filter(Boolean).join(" · ") || " "}</div>
+                </div>
+                <div class="tside">
+                  <span class=${`pill g-${g.status}`}>${gearStatusLabel(g.status)}</span>
+                  ${money(g.cost) && html`<span class="price">${money(g.cost)}</span>`}
+                </div>
+              </button>`)}
+            </div>`}
+    </div>`;
+}
+
+const BLANK_GEAR = {
+  name: "", category: "", status: "working", quantity: 1, location: "", make_model: "", serial: "", cost: null,
+  purchase_url: "", purchased_on: "", tags: [], links: [], images: [], notes: "",
+};
+
+function GearEditor({ id, ctx }) {
+  const { draft, set, dirty, setDirty, isNew, missing } = useDraft(id, ctx.equipment, BLANK_GEAR);
+  const { busy, err, save, remove } = useSaver({ path: "equipment", id, draft, isNew, setDirty, ctx, which: "equipment", back: "gear", what: "item" });
+  useLeaveGuard(dirty);
+  if (missing) return html`<${BackBar} to="gear" label="Equipment" /><div class="empty"><h2>Item not found</h2><p>It may have been deleted.</p></div>`;
+  if (!draft) return html`<${BackBar} to="gear" label="Equipment" />`;
+  const real = ctx.real.equipment || [];
+  const allCategories = uniqueSorted(["audio", "lighting", "staging", "cases", "tech", ...real.map((g) => g.category)]);
+  const allTags = uniqueSorted(real.flatMap((g) => g.tags));
+  const usedIn = (ctx.setlists || []).filter((s) => (s.equipment || []).includes(id));
+  return html`
+    <${BackBar} to="gear" label="Equipment" />
+    <div class="scroll pad">
+      <div class="editor">
+        <${TitleInput} placeholder="Item name" value=${draft.name} onInput=${(v) => set({ name: v })} autofocus=${isNew} />
+        <div class="cols">
+          <${Field} label="CONDITION">
+            <select class="select" value=${draft.status} onChange=${(e) => set({ status: e.target.value })}>
+              ${GEAR_STATUSES.map(([k, l]) => html`<option value=${k}>${l}</option>`)}
+            </select>
+          <//>
+          <${Field} label="CATEGORY"><${Text} value=${draft.category} placeholder="Audio, lighting, staging…" list="gear-categories" onInput=${(v) => set({ category: v })} /><//>
+          <${Field} label="HOW MANY"><${Text} type="number" min="0" step="1" inputmode="numeric" value=${draft.quantity ?? 1} onInput=${(v) => set({ quantity: v === "" ? 1 : Number(v) })} /><//>
+          <${Field} label="WHERE IT LIVES"><${Text} value=${draft.location} placeholder="Case, shelf, car…" onInput=${(v) => set({ location: v })} /><//>
+        </div>
+        <datalist id="gear-categories">${allCategories.map((c) => html`<option value=${c} />`)}</datalist>
+        <${Gallery} ctx=${ctx} keys=${draft.images} onChange=${(images) => set({ images })} />
+        <div class="cols">
+          <${Field} label="MAKE / MODEL"><${Text} value=${draft.make_model} onInput=${(v) => set({ make_model: v })} /><//>
+          <${Field} label="SERIAL NUMBER"><${Text} value=${draft.serial} onInput=${(v) => set({ serial: v })} /><//>
+        </div>
+        <${Field} label="TAGS"><${TagInput} value=${draft.tags} suggestions=${allTags} placeholder="charge before show, fragile…" onChange=${(tags) => set({ tags })} /><//>
+        <${Field} label="NOTES"><${Area} value=${draft.notes} onInput=${(v) => set({ notes: v })} /><//>
+        <div class="section">
+          <h3>Buying</h3>
+          <div class="cols">
+            <${Field} label="PRICE ($)"><${Text} type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value=${draft.cost ?? ""} onInput=${(v) => set({ cost: v === "" ? null : Number(v) })} /><//>
+            <${Field} label="BOUGHT ON"><input class="input" type="date" value=${draft.purchased_on} onInput=${(e) => set({ purchased_on: e.target.value })} /><//>
+          </div>
+          <${Field} label="PURCHASE LINK">
+            <div class="with-btn">
+              <input class="input" inputmode="url" placeholder="https://…" value=${draft.purchase_url || ""} onInput=${(e) => set({ purchase_url: e.target.value })} />
+              ${draft.purchase_url && html`<a class="btn" href=${/^https?:/.test(draft.purchase_url) ? draft.purchase_url : `https://${draft.purchase_url}`} target="_blank" rel="noopener"><${Icon} name="external" />${draft.status === "wishlist" ? "Buy" : "Open"}</a>`}
+            </div>
+          <//>
+        </div>
+        ${usedIn.length > 0 && html`<div class="section"><h3>Packed for</h3>
+          <div class="chips">${usedIn.map((s) => html`<button class="chip" onClick=${() => go(`sets/${s.id}`)}>${s.name}</button>`)}</div>
+        </div>`}
+      </div>
+    </div>
+    <${SaveBar} dirty=${dirty} busy=${busy} err=${err} isNew=${isNew} sample=${!!draft.demo} onSave=${save} onDelete=${remove} what="item" />`;
+}
+
+/** Equipment chips for a set list, with a picker to add more. */
+function GearPicker({ ctx, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef();
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  const byId = new Map([...DEMO_EQUIPMENT, ...(ctx.real.equipment || [])].map((g) => [g.id, g]));
+  const options = (ctx.real.equipment || []).filter((g) => !value.includes(g.id) && g.status !== "retired" && g.name.toLowerCase().includes(q.toLowerCase()));
+  return html`<div class="gear-pick">
+    ${value.map((gid) => {
+      const g = byId.get(gid);
+      return html`<span class="tag">${g ? g.name : "(removed)"}${g?.quantity > 1 ? ` ×${g.quantity}` : ""}
+        <button type="button" aria-label="Remove" onClick=${() => onChange(value.filter((x) => x !== gid))}><${Icon} name="x" /></button></span>`;
+    })}
+    <div class="picker" ref=${ref}>
+      <button class="btn" onClick=${() => setOpen(!open)}><${Icon} name="plus" />Add equipment</button>
+      ${open && html`<div class="menu">
+        <input class="input" placeholder="Search equipment…" value=${q} autofocus onInput=${(e) => setQ(e.target.value)} />
+        ${options.length === 0 && html`<div class="none">${(ctx.real.equipment || []).length ? "Nothing else matches." : "Add equipment to your inventory first."}</div>`}
+        ${options.map((g) => html`<button class="opt" onClick=${() => { onChange([...value, g.id]); setQ(""); }}>
+          ${g.name}<span class="sub">${[g.category, g.location].filter(Boolean).join(" · ")}</span>
+        </button>`)}
+      </div>`}
+    </div>
+  </div>`;
+}
+
+// ---------- tasks ----------
+
+const addDays = (iso, n) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  const t = new Date(y, m - 1, d + n);
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+};
+function dueLabel(due) {
+  if (!due) return "";
+  const t = today();
+  if (due === t) return "Today";
+  if (due === addDays(t, 1)) return "Tomorrow";
+  const [y, m, d] = due.split("-").map(Number);
+  const nice = new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return due < t ? `Overdue · ${nice}` : nice;
+}
+
+/** Saves a change to a task straight away (shown instantly, then confirmed by the server). */
+async function patchTask(ctx, task, patch) {
+  if (task.demo) {
+    ctx.setToast("That's a sample task. Add your own and the samples go away.");
+    return;
+  }
+  ctx.setTasks((list) => (list || []).map((t) => (t.id === task.id ? { ...t, ...patch } : t)));
+  try {
+    await api(`tasks/${task.id}`, { method: "PUT", body: patch });
+  } catch (e) {
+    ctx.setToast(e.message);
+  }
+  ctx.load(["tasks"]);
+}
+
+function TaskRow({ task, ctx, showSet = true }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState(task.title);
+  const [notes, setNotes] = useState(task.notes);
+  useEffect(() => { setTitle(task.title); setNotes(task.notes); }, [task.title, task.notes]);
+  const set = (ctx.setlists || []).find((s) => s.id === task.setlist_id);
+  const overdue = !task.done && task.due && task.due < today();
+  const remove = async () => {
+    if (!confirm("Delete this task?")) return;
+    ctx.setTasks((list) => list.filter((t) => t.id !== task.id));
+    await api(`tasks/${task.id}`, { method: "DELETE" }).catch((e) => ctx.setToast(e.message));
+    ctx.load(["tasks"]);
+  };
+  return html`<div class=${`task ${task.done ? "done" : ""} ${open ? "open" : ""}`}>
+    <div class="task-line">
+      <button class="tick" role="checkbox" aria-checked=${task.done} aria-label=${task.done ? "Mark not done" : "Mark done"}
+        onClick=${() => patchTask(ctx, task, { done: !task.done })}>${task.done ? html`<${Icon} name="check" />` : null}</button>
+      <button class="task-main" onClick=${() => (task.demo ? patchTask(ctx, task, {}) : setOpen(!open))}>
+        <span class="task-title">${task.title}</span>
+        ${(task.due || (showSet && set) || task.notes) && html`<span class="task-meta">
+          ${task.due && html`<span class=${overdue ? "late" : ""}>${dueLabel(task.due)}</span>`}
+          ${showSet && set && html`<span>${set.name}</span>`}
+          ${task.notes && !open && html`<span>Has notes</span>`}
+          <${SampleTag} item=${task} />
+        </span>`}
+      </button>
+    </div>
+    ${open && html`<div class="task-edit">
+      <input class="input" value=${title} aria-label="Task" onInput=${(e) => setTitle(e.target.value)}
+        onBlur=${() => title.trim() && title !== task.title && patchTask(ctx, task, { title })} />
+      <div class="cols">
+        <${Field} label="DUE"><input class="input" type="date" value=${task.due} onChange=${(e) => patchTask(ctx, task, { due: e.target.value })} /><//>
+        <${Field} label="FOR SHOW">
+          <select class="select" value=${task.setlist_id || ""} onChange=${(e) => patchTask(ctx, task, { setlist_id: e.target.value || null })}>
+            <option value="">None</option>
+            ${(ctx.real.setlists || []).map((s) => html`<option value=${s.id}>${s.name}</option>`)}
+          </select>
+        <//>
+      </div>
+      <${Area} value=${notes} placeholder="Notes" onInput=${setNotes} onBlur=${() => notes !== task.notes && patchTask(ctx, task, { notes })} />
+      <div class="task-acts">
+        <button class="btn danger" onClick=${remove}><${Icon} name="trash" />Delete</button>
+        <div style="flex:1"></div>
+        <button class="btn" onClick=${() => setOpen(false)}>Done editing</button>
+      </div>
+    </div>`}
+  </div>`;
+}
+
+function TaskAdd({ ctx, setlistId, placeholder = "Add a task…" }) {
+  const [text, setText] = useState("");
+  const [due, setDue] = useState("");
+  const [picking, setPicking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const add = async (e) => {
+    e.preventDefault();
+    const title = text.trim();
+    if (!title || busy) return;
+    setBusy(true);
+    try {
+      await api("tasks", { method: "POST", body: { title, due, setlist_id: setlistId || null } });
+      setText("");
+      setDue("");
+      setPicking(false);
+      await ctx.load(["tasks"]);
+    } catch (e2) {
+      ctx.setToast(e2.message);
+    }
+    setBusy(false);
+  };
+  return html`<form class="task-add" onSubmit=${add}>
+    <${Icon} name="plus" />
+    <input class="ta-text" placeholder=${placeholder} value=${text} onInput=${(e) => setText(e.target.value)} aria-label="New task" />
+    ${picking || due
+      ? html`<input class="ta-date" type="date" value=${due} autofocus aria-label="Due date"
+          ref=${(el) => { if (el && picking && !due) { try { el.showPicker(); } catch {} } }}
+          onInput=${(e) => setDue(e.target.value)} onBlur=${() => !due && setPicking(false)} />`
+      : html`<button type="button" class="ta-when" onClick=${() => setPicking(true)}>+ Date</button>`}
+    <button class="btn primary" disabled=${!text.trim() || busy}>Add</button>
+  </form>`;
+}
+
+function TaskPage({ ctx }) {
+  const [showDone, setShowDone] = useState(false);
+  const list = ctx.tasks;
+  const t = today();
+  const open = (list || []).filter((x) => !x.done);
+  const done = (list || []).filter((x) => x.done);
+  const groups = [
+    ["Overdue", open.filter((x) => x.due && x.due < t)],
+    ["Today", open.filter((x) => x.due === t)],
+    ["Coming up", open.filter((x) => x.due && x.due > t)],
+    ["Anytime", open.filter((x) => !x.due)],
+  ].filter(([, items]) => items.length);
+  return html`
+    <div class="bar"><h1>Tasks</h1><div class="grow"></div>
+      ${list && html`<span class="muted-sm">${open.length} to do</span>`}
+    </div>
+    <div class="scroll pad">
+      <div class="tasks-wrap">
+        <${TaskAdd} ctx=${ctx} />
+        <${SampleNote} list=${list} what="tasks" newPath="tasks" />
+        ${list && open.length === 0 && html`<div class="empty small"><h2>All done</h2><p>Nothing left to do. Add a task above, or ask the chat to remind you of something.</p></div>`}
+        ${groups.map(([label, items]) => html`<div class="task-group"><h3 class=${label === "Overdue" ? "late" : ""}>${label}</h3>
+          ${items.map((x) => html`<${TaskRow} key=${x.id} task=${x} ctx=${ctx} />`)}
+        </div>`)}
+        ${done.length > 0 && html`<div class="task-group">
+          <button class="done-toggle" onClick=${() => setShowDone(!showDone)}>${showDone ? "Hide" : "Show"} done (${done.length})</button>
+          ${showDone && done.map((x) => html`<${TaskRow} key=${x.id} task=${x} ctx=${ctx} />`)}
+        </div>`}
+      </div>
+    </div>`;
+}
+
+// ---------- notes ----------
+
+const noteTitle = (n) => n.title || (n.body || "").split("\n").find((l) => l.trim())?.trim().slice(0, 80) || "New note";
+
+function NoteList({ ctx }) {
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const { notes } = ctx;
+  const shown = useMemo(() => {
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    return (notes || []).filter((n) => words.every((w) => `${n.title} ${n.body}`.toLowerCase().includes(w)));
+  }, [notes, q]);
+  const create = async () => {
+    setBusy(true);
+    try {
+      const n = await api("notes", { method: "POST", body: { title: "", body: "" } });
+      await ctx.load(["notes"]);
+      go(`notes/${n.id}`);
+    } catch (e) {
+      ctx.setToast(e.message);
+    }
+    setBusy(false);
+  };
+  return html`
+    <div class="bar">
+      <h1>Notes</h1>
+      <label class="search"><${Icon} name="search" /><span class="sr">Search notes</span>
+        <input placeholder="Search notes…" value=${q} onInput=${(e) => setQ(e.target.value)} />
+      </label>
+      <div class="grow"></div>
+      <button class="btn primary" disabled=${busy} onClick=${create}><${Icon} name="plus" />New note</button>
+    </div>
+    <div class="scroll pad">
+      <${SampleNote} list=${notes} what="notes" newPath="notes" />
+      ${notes && shown.length === 0 && html`<div class="empty"><h2>No matches</h2><p>No note has those words.</p></div>`}
+      <div class="rows">
+        ${shown.map((n) => html`<button class="row note-row" onClick=${() => go(`notes/${n.id}`)}>
+          <div class="txt">
+            <div class="name">${n.pinned ? html`<span class="pin-mark"><${Icon} name="pin" /></span>` : null}${noteTitle(n)} <${SampleTag} item=${n} /></div>
+            <div class="sub">${(n.title ? n.body : n.body.split("\n").slice(1).join(" ")).replace(/\s+/g, " ").trim().slice(0, 140) || "No more text"}</div>
+          </div>
+          <div class="right">${ago(n.updated_at)}</div>
+        </button>`)}
+      </div>
+    </div>`;
+}
+
+/** Notes save themselves a moment after you stop typing. */
+function NoteEditor({ id, ctx }) {
+  const fromList = (ctx.notes || []).find((n) => n.id === id);
+  const [draft, setDraft] = useState(() => (fromList ? { ...fromList } : null));
+  const [state, setState] = useState("saved"); // saved | pending | saving | error
+  const timer = useRef(0);
+  const gone = useRef(false); // deleted: nothing to save on the way out
+  const latest = useRef(draft);
+  latest.current = draft;
+  useEffect(() => { if (!draft && fromList) setDraft({ ...fromList }); }, [fromList]);
+  const flush = async () => {
+    clearTimeout(timer.current);
+    const d = latest.current;
+    if (!d || d.demo) return;
+    setState("saving");
+    try {
+      await api(`notes/${id}`, { method: "PUT", body: { title: d.title, body: d.body, pinned: d.pinned } });
+      setState((s) => (s === "saving" ? "saved" : s));
+      ctx.load(["notes"]);
+    } catch (e) {
+      setState("error");
+      ctx.setToast(e.message);
+    }
+  };
+  const change = (patch) => {
+    setDraft((d) => ({ ...d, ...patch }));
+    if (latest.current?.demo) return; // samples are only saved with "Add to my notes"
+    setState("pending");
+    clearTimeout(timer.current);
+    timer.current = setTimeout(flush, 700);
+  };
+  // Moving around the app saves on the way out; only closing the tab needs a warning.
+  useLeaveGuard(state === "pending" || state === "saving", false);
+  // Leaving the page: save what's pending, and drop a note that was never written in.
+  useEffect(() => () => {
+    const d = latest.current;
+    if (!d || d.demo || gone.current) return;
+    if (!d.title.trim() && !d.body.trim()) {
+      api(`notes/${id}`, { method: "DELETE" }).then(() => ctx.load(["notes"])).catch(() => {});
+    } else if (timer.current) {
+      clearTimeout(timer.current);
+      api(`notes/${id}`, { method: "PUT", body: { title: d.title, body: d.body, pinned: d.pinned } }).then(() => ctx.load(["notes"])).catch(() => {});
+    }
+  }, []);
+  if (!draft) {
+    return html`<${BackBar} to="notes" label="Notes" />${ctx.notes && html`<div class="empty"><h2>Note not found</h2><p>It may have been deleted.</p></div>`}`;
+  }
+  const keep = async () => {
+    try {
+      const n = await api("notes", { method: "POST", body: adopt("notes", draft) });
+      await ctx.load(["notes"]);
+      location.replace(`#/notes/${n.id}`);
+    } catch (e) {
+      ctx.setToast(e.message);
+    }
+  };
+  const remove = async () => {
+    if (!confirm("Delete this note? This can't be undone.")) return;
+    gone.current = true;
+    clearTimeout(timer.current);
+    await api(`notes/${id}`, { method: "DELETE" }).catch((e) => ctx.setToast(e.message));
+    await ctx.load(["notes"]);
+    unsaved = false;
+    go("notes");
+  };
+  const label = { saved: "Saved", pending: "Editing…", saving: "Saving…", error: "Couldn't save" }[state];
+  return html`
+    <${BackBar} to="notes" label="Notes">
+      ${!draft.demo && html`<span class=${`save-state ${state}`}>${label}</span>`}
+      ${!draft.demo && html`<button class=${`icon-btn ${draft.pinned ? "pinned" : ""}`} aria-label=${draft.pinned ? "Unpin" : "Pin to top"} aria-pressed=${draft.pinned} onClick=${() => change({ pinned: !draft.pinned })}><${Icon} name="pin" /></button>`}
+      ${!draft.demo && html`<button class="icon-btn" aria-label="Delete note" onClick=${remove}><${Icon} name="trash" /></button>`}
+      ${draft.demo && html`<button class="btn primary" onClick=${keep}>Add to my notes</button>`}
+    <//>
+    <div class="scroll pad">
+      <div class="editor note-editor">
+        <${TitleInput} placeholder="Title" value=${draft.title} onInput=${(v) => change({ title: v })} autofocus=${!draft.title && !draft.body} />
+        <${Area} class="textarea note-body" rows="10" max=${100000} value=${draft.body} placeholder="Start writing…" onInput=${(v) => change({ body: v })} />
+      </div>
+    </div>`;
 }
 
 // ---------- chat ----------

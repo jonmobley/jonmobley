@@ -72,6 +72,7 @@ export const DEMO_SETLISTS = [
       { id: "demo-i6", trick_id: "demo-rings", notes: "Closer. Big music cue." },
       { id: "demo-i7", title: "Thank you + bow", duration_min: 1 },
     ],
+    equipment: ["demo-gear-mic", "demo-gear-speaker", "demo-gear-table"],
     created_at: t0, updated_at: t0, demo: true,
   },
 ];
@@ -97,6 +98,7 @@ export function adopt(kind, draft) {
   const { id, demo, emoji, created_at, updated_at, ...rest } = draft;
   if (kind === "tricks" && rest.method === METHOD) rest.method = "";
   if (kind === "setlists") {
+    rest.equipment = (rest.equipment || []).filter((g) => !g.startsWith("demo-"));
     rest.items = rest.items.map((i) => {
       const t = i.trick_id && i.trick_id.startsWith("demo-") ? demoTrick(i.trick_id) : null;
       const item = { ...i, id: fresh() };
@@ -108,6 +110,7 @@ export function adopt(kind, draft) {
       return item;
     });
   }
+  if (kind === "tasks" && rest.setlist_id && rest.setlist_id.startsWith("demo-")) rest.setlist_id = null;
   if (kind === "playlists") {
     if (rest.setlist_id && rest.setlist_id.startsWith("demo-")) rest.setlist_id = null;
     rest.tracks = rest.tracks.map(({ trick_id, ...t }) => ({
@@ -118,3 +121,24 @@ export function adopt(kind, draft) {
   }
   return rest;
 }
+
+export const DEMO_EQUIPMENT = [
+  { id: "demo-gear-mic", emoji: "🎤", name: "Wireless headset mic", category: "audio", status: "working", quantity: 1, location: "Audio case", make_model: "", tags: ["show essential"] },
+  { id: "demo-gear-speaker", emoji: "🔊", name: "Battery PA speaker", category: "audio", status: "working", quantity: 1, location: "Garage shelf", make_model: "", tags: ["charge before show"] },
+  { id: "demo-gear-table", emoji: "🪑", name: "Folding close-up table", category: "staging", status: "working", quantity: 1, location: "Car trunk", make_model: "", tags: [] },
+  { id: "demo-gear-mat", emoji: "🟩", name: "Close-up pad", category: "staging", status: "repair", quantity: 2, location: "Close-up bag", make_model: "", tags: [], notes: "One has a frayed edge." },
+  { id: "demo-gear-light", emoji: "💡", name: "LED uplights", category: "lighting", status: "wishlist", quantity: 4, location: "", make_model: "", tags: [], cost: 60 },
+].map((g) => ({
+  serial: "", cost: null, purchase_url: "", purchased_on: "", links: [], images: [], notes: "", created_at: t0, updated_at: t0, demo: true, ...g,
+}));
+
+export const DEMO_TASKS = [
+  { id: "demo-task-1", title: "Charge the headset mic and speaker", done: false, due: "2026-12-11", notes: "", setlist_id: "demo-set" },
+  { id: "demo-task-2", title: "Buy more flash paper", done: false, due: "", notes: "", setlist_id: null },
+  { id: "demo-task-3", title: "Send invoice to Acme", done: true, due: "", notes: "", setlist_id: "demo-set" },
+].map((t) => ({ done_at: t.done ? t0 : null, created_at: t0, updated_at: t0, demo: true, ...t }));
+
+export const DEMO_NOTES = [
+  { id: "demo-note-1", title: "Opening lines", pinned: true, body: "Ideas for a stronger first minute.\n\n• Walk on to music, no talking for 10 seconds\n• First line gets a laugh before any magic\n• Name check the host" },
+  { id: "demo-note-2", title: "Venue: Hotel ballroom", pinned: false, body: "Load-in through the kitchen. Ask for the AV tech by name. Stage is 16 inches high, no stairs on the left." },
+].map((n) => ({ created_at: t0, updated_at: t0, demo: true, ...n }));

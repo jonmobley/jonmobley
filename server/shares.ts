@@ -90,13 +90,19 @@ export async function sharedView(env: Env, token: string): Promise<SharedView | 
     };
   });
   const playlists = (await data.listPlaylists(env)).filter((p) => p.setlist_id === s.id).map((p) => publicPlaylist(p, tricks));
+  const gearById = new Map((await data.listEquipment(env)).map((g) => [g.id, g]));
+  const equipment = s.equipment.flatMap((id) => {
+    const g = gearById.get(id);
+    return g ? [{ name: g.name, quantity: g.quantity, location: g.location, make_model: g.make_model, image: g.images.find((k) => /\.(jpg|png|webp|gif)$/.test(k)) }] : [];
+  });
   const media = [
     ...items.flatMap((i) => i.trick?.images ?? []),
     ...playlists.flatMap((p) => p.tracks.flatMap((t) => (t.file_key ? [t.file_key] : []))),
+    ...equipment.flatMap((g) => (g.image ? [g.image] : [])),
   ];
   return {
     kind: "setlist",
-    data: { name: s.name, event: s.event, venue: s.venue, date: s.date, notes: s.notes, items, playlists },
+    data: { name: s.name, event: s.event, venue: s.venue, date: s.date, notes: s.notes, items, playlists, equipment },
     media,
   };
 }

@@ -16,7 +16,7 @@ export interface Trick {
 export interface SetItem { id: string; trick_id?: string; title?: string; duration_min?: number | null; notes?: string }
 export interface Setlist {
   id: string; name: string; event: string; venue: string; date: string; notes: string;
-  items: SetItem[]; created_at: number; updated_at: number;
+  items: SetItem[]; equipment: string[]; created_at: number; updated_at: number;
 }
 export interface Track {
   id: string; title: string; artist?: string; url?: string; file_key?: string;
@@ -158,7 +158,7 @@ export async function deleteTrick(env: Env, id: string): Promise<boolean> {
 // ---------- set lists ----------
 
 function rowToSetlist(r: Json): Setlist {
-  return { ...(r as unknown as Setlist), items: parse(r.items, []) };
+  return { ...(r as unknown as Setlist), items: parse(r.items, []), equipment: parse(r.equipment, []) };
 }
 
 export async function listSetlists(env: Env): Promise<Setlist[]> {
@@ -193,7 +193,7 @@ export async function saveSetlist(env: Env, input: Json, id?: string): Promise<S
   if (id && !existing) throw new InputError("That set list doesn't exist.");
   const has = (k: string) => Object.prototype.hasOwnProperty.call(input, k);
   const s: Setlist = {
-    ...(existing ?? { id: newId(), name: "", event: "", venue: "", date: "", notes: "", items: [], created_at: Date.now() }),
+    ...(existing ?? { id: newId(), name: "", event: "", venue: "", date: "", notes: "", items: [], equipment: [], created_at: Date.now() }),
     updated_at: Date.now(),
   } as Setlist;
   for (const k of ["name", "event", "venue", "notes"] as const) if (has(k)) s[k] = str(input[k], k === "notes" ? 20000 : 200);
@@ -203,18 +203,20 @@ export async function saveSetlist(env: Env, input: Json, id?: string): Promise<S
     s.date = d;
   }
   if (has("items")) s.items = setItems(input.items);
+  if (has("equipment")) s.equipment = Array.isArray(input.equipment) ? [...new Set(input.equipment.map((x) => str(x, 64)).filter(Boolean))].slice(0, 200) : [];
   if (!s.name) throw new InputError("A set list needs a name.");
   await env.DB.prepare(
-    `INSERT INTO setlists (id, name, event, venue, date, notes, items, created_at, updated_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-     ON CONFLICT(id) DO UPDATE SET name=?2, event=?3, venue=?4, date=?5, notes=?6, items=?7, updated_at=?9`,
+    `INSERT INTO setlists (id, name, event, venue, date, notes, items, created_at, updated_at, equipment)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+     ON CONFLICT(id) DO UPDATE SET name=?2, event=?3, venue=?4, date=?5, notes=?6, items=?7, updated_at=?9, equipment=?10`,
   )
-    .bind(s.id, s.name, s.event, s.venue, s.date, s.notes, JSON.stringify(s.items), s.created_at, s.updated_at)
+    .bind(s.id, s.name, s.event, s.venue, s.date, s.notes, JSON.stringify(s.items), s.created_at, s.updated_at, JSON.stringify(s.equipment))
     .run();
   return s;
 }
 
 export async function deleteSetlist(env: Env, id: string): Promise<boolean> {
+  await env.DB.prepare("UPDATE tasks SET setlist_id = NULL WHERE setlist_id = ?").bind(id).run();
   const r = await env.DB.prepare("DELETE FROM setlists WHERE id = ?").bind(id).run();
   return r.meta.changes > 0;
 }
@@ -301,4 +303,182 @@ export async function putMedia(env: Env, file: File): Promise<{ key: string; typ
     customMetadata: { name: file.name.slice(0, 200) },
   });
   return { key, type: file.type, name: file.name, size: file.size };
+}
+
+// ---------- tasks ----------
+
+export interface Task {
+  id: string; title: string; done: boolean; due: string; notes: string; setlist_id: string | null;
+  done_at: number | null; created_at: number; updated_at: number;
+}
+
+const rowToTask = (r: Json): Task => ({ ...(r as unknown as Task), done: !!r.done });
+
+/** Open tasks first (soonest due date first, undated last), then finished ones (latest first). */
+export async function listTasks(env: Env): Promise<Task[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM tasks ORDER BY done,
+       CASE WHEN done = 0 AND due = '' THEN 1 ELSE 0 END, CASE WHEN done = 0 THEN due END, done_at DESC, created_at`,
+  ).all<Json>();
+  return results.map(rowToTask);
+}
+
+export async function getTask(env: Env, id: string): Promise<Task | null> {
+  const r = await env.DB.prepare("SELECT * FROM tasks WHERE id = ?").bind(id).first<Json>();
+  return r ? rowToTask(r) : null;
+}
+
+export async function saveTask(env: Env, input: Json, id?: string): Promise<Task> {
+  const existing = id ? await getTask(env, id) : null;
+  if (id && !existing) throw new InputError("That task doesn't exist.");
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(input, k);
+  const now = Date.now();
+  const t: Task = {
+    ...(existing ?? { id: newId(), title: "", done: false, due: "", notes: "", setlist_id: null, done_at: null, created_at: now }),
+    updated_at: now,
+  } as Task;
+  if (has("title")) t.title = str(input.title, 500);
+  if (has("notes")) t.notes = str(input.notes);
+  if (has("due")) {
+    const d = str(input.due, 10);
+    if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new InputError("Dates look like 2026-10-31.");
+    t.due = d;
+  }
+  if (has("setlist_id")) t.setlist_id = optStr(input.setlist_id, 64) ?? null;
+  if (has("done")) {
+    const done = input.done === true || input.done === 1;
+    if (done !== t.done) t.done_at = done ? now : null;
+    t.done = done;
+  }
+  if (!t.title) throw new InputError("A task needs some words.");
+  await env.DB.prepare(
+    `INSERT INTO tasks (id, title, done, due, notes, setlist_id, done_at, created_at, updated_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+     ON CONFLICT(id) DO UPDATE SET title=?2, done=?3, due=?4, notes=?5, setlist_id=?6, done_at=?7, updated_at=?9`,
+  )
+    .bind(t.id, t.title, t.done ? 1 : 0, t.due, t.notes, t.setlist_id, t.done_at, t.created_at, t.updated_at)
+    .run();
+  return t;
+}
+
+export async function deleteTask(env: Env, id: string): Promise<boolean> {
+  const r = await env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(id).run();
+  return r.meta.changes > 0;
+}
+
+// ---------- notes ----------
+
+export interface Note { id: string; title: string; body: string; pinned: boolean; created_at: number; updated_at: number }
+
+const rowToNote = (r: Json): Note => ({ ...(r as unknown as Note), pinned: !!r.pinned });
+
+export async function listNotes(env: Env): Promise<Note[]> {
+  const { results } = await env.DB.prepare("SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC").all<Json>();
+  return results.map(rowToNote);
+}
+
+export async function getNote(env: Env, id: string): Promise<Note | null> {
+  const r = await env.DB.prepare("SELECT * FROM notes WHERE id = ?").bind(id).first<Json>();
+  return r ? rowToNote(r) : null;
+}
+
+export async function saveNote(env: Env, input: Json, id?: string): Promise<Note> {
+  const existing = id ? await getNote(env, id) : null;
+  if (id && !existing) throw new InputError("That note doesn't exist.");
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(input, k);
+  const now = Date.now();
+  const n: Note = { ...(existing ?? { id: newId(), title: "", body: "", pinned: false, created_at: now }), updated_at: now } as Note;
+  if (has("title")) n.title = str(input.title, 300);
+  if (has("body")) n.body = typeof input.body === "string" ? input.body.slice(0, 100000) : "";
+  if (has("pinned")) n.pinned = input.pinned === true || input.pinned === 1;
+  await env.DB.prepare(
+    `INSERT INTO notes (id, title, body, pinned, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     ON CONFLICT(id) DO UPDATE SET title=?2, body=?3, pinned=?4, updated_at=?6`,
+  )
+    .bind(n.id, n.title, n.body, n.pinned ? 1 : 0, n.created_at, n.updated_at)
+    .run();
+  return n;
+}
+
+export async function deleteNote(env: Env, id: string): Promise<boolean> {
+  const r = await env.DB.prepare("DELETE FROM notes WHERE id = ?").bind(id).run();
+  return r.meta.changes > 0;
+}
+
+// ---------- equipment ----------
+
+export const GEAR_STATUSES = ["working", "repair", "wishlist", "retired"] as const;
+
+export interface Gear {
+  id: string; name: string; category: string; status: string; quantity: number; location: string; make_model: string;
+  serial: string; cost: number | null; purchase_url: string; purchased_on: string; tags: string[]; links: Link[];
+  images: string[]; notes: string; created_at: number; updated_at: number;
+}
+
+const rowToGear = (r: Json): Gear => ({
+  ...(r as unknown as Gear), tags: parse(r.tags, []), links: parse(r.links, []), images: parse(r.images, []),
+});
+
+export async function listEquipment(env: Env): Promise<Gear[]> {
+  const { results } = await env.DB.prepare("SELECT * FROM equipment ORDER BY name COLLATE NOCASE").all<Json>();
+  return results.map(rowToGear);
+}
+
+export async function getEquipment(env: Env, id: string): Promise<Gear | null> {
+  const r = await env.DB.prepare("SELECT * FROM equipment WHERE id = ?").bind(id).first<Json>();
+  return r ? rowToGear(r) : null;
+}
+
+export async function saveEquipment(env: Env, input: Json, id?: string): Promise<Gear> {
+  const existing = id ? await getEquipment(env, id) : null;
+  if (id && !existing) throw new InputError("That equipment doesn't exist.");
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(input, k);
+  const now = Date.now();
+  const g: Gear = {
+    ...(existing ?? {
+      id: newId(), name: "", category: "", status: "working", quantity: 1, location: "", make_model: "", serial: "", cost: null,
+      purchase_url: "", purchased_on: "", tags: [], links: [], images: [], notes: "", created_at: now,
+    }),
+    updated_at: now,
+  } as Gear;
+  for (const k of ["name", "category", "location", "make_model", "serial"] as const) if (has(k)) g[k] = str(input[k], 200);
+  if (has("notes")) g.notes = str(input.notes);
+  if (has("status")) {
+    const st = str(input.status).toLowerCase();
+    if (!(GEAR_STATUSES as readonly string[]).includes(st)) throw new InputError(`Condition must be one of: ${GEAR_STATUSES.join(", ")}.`);
+    g.status = st;
+  }
+  if (has("quantity")) g.quantity = Math.max(0, Math.min(9999, Math.round(num(input.quantity) ?? 1)));
+  if (has("cost")) g.cost = num(input.cost);
+  if (has("purchase_url")) {
+    const raw = str(input.purchase_url, 2000);
+    const url = safeUrl(raw);
+    if (raw && !url) throw new InputError("The purchase link doesn't look like a web address.");
+    g.purchase_url = url ?? "";
+  }
+  if (has("purchased_on")) {
+    const d = str(input.purchased_on, 10);
+    if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new InputError("Dates look like 2026-10-31.");
+    g.purchased_on = d;
+  }
+  if (has("tags")) g.tags = strList(input.tags);
+  if (has("links")) g.links = links(input.links);
+  if (has("images")) g.images = mediaKeys(input.images);
+  if (!g.name) throw new InputError("Equipment needs a name.");
+  await env.DB.prepare(
+    `INSERT INTO equipment (id, name, category, status, quantity, location, make_model, serial, cost, purchase_url,
+       purchased_on, tags, links, images, notes, created_at, updated_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+     ON CONFLICT(id) DO UPDATE SET name=?2, category=?3, status=?4, quantity=?5, location=?6, make_model=?7, serial=?8,
+       cost=?9, purchase_url=?10, purchased_on=?11, tags=?12, links=?13, images=?14, notes=?15, updated_at=?17`,
+  )
+    .bind(g.id, g.name, g.category, g.status, g.quantity, g.location, g.make_model, g.serial, g.cost, g.purchase_url,
+      g.purchased_on, JSON.stringify(g.tags), JSON.stringify(g.links), JSON.stringify(g.images), g.notes, g.created_at, g.updated_at)
+    .run();
+  return g;
+}
+
+export async function deleteEquipment(env: Env, id: string): Promise<boolean> {
+  const r = await env.DB.prepare("DELETE FROM equipment WHERE id = ?").bind(id).run();
+  return r.meta.changes > 0;
 }

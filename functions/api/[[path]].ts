@@ -29,6 +29,9 @@ const collections = {
   tricks: { list: data.listTricks, get: data.getTrick, save: data.saveTrick, remove: data.deleteTrick },
   setlists: { list: data.listSetlists, get: data.getSetlist, save: data.saveSetlist, remove: data.deleteSetlist },
   playlists: { list: data.listPlaylists, get: data.getPlaylist, save: data.savePlaylist, remove: data.deletePlaylist },
+  equipment: { list: data.listEquipment, get: data.getEquipment, save: data.saveEquipment, remove: data.deleteEquipment },
+  tasks: { list: data.listTasks, get: data.getTask, save: data.saveTask, remove: data.deleteTask },
+  notes: { list: data.listNotes, get: data.getNote, save: data.saveNote, remove: data.deleteNote },
 } as const;
 
 const SHARE_KIND = { tricks: "trick", setlists: "setlist", playlists: "playlist" } as const;
@@ -45,7 +48,7 @@ async function collection(request: Request, env: Env, name: keyof typeof collect
   if (id && m === "PUT") return json(await c.save(env, await body(request), id));
   if (id && m === "DELETE") {
     if (!(await c.remove(env, id))) return fail("Not found.", 404);
-    await shares.deleteShare(env, SHARE_KIND[name], id);
+    if (name in SHARE_KIND) await shares.deleteShare(env, SHARE_KIND[name as keyof typeof SHARE_KIND], id);
     return json({ ok: true });
   }
   return fail("Not allowed.", 405);
@@ -138,6 +141,9 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
       case "tricks":
       case "setlists":
       case "playlists":
+      case "tasks":
+      case "notes":
+      case "equipment":
         return await collection(request, env, section, id);
       case "media": {
         if (method === "POST" && !id) {

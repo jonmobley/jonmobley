@@ -23,6 +23,10 @@ You manage his library with the tools:
 - Set lists: an ordered running order for a show (event, venue, date). Items point at a trick (trick_id) or are a free-text bit (title), each with optional duration_min and notes. Total length = sum of durations, falling back to each trick's duration.
 - Playlists: music and sound cues, optionally tied to a set list. Tracks have title, artist, url, cue (when to play), duration_sec, and optional trick_id.
 
+- Equipment: gear that isn't a trick (mics, speakers, cases, tables, lights, cables). Fields: name, category, status (working, repair = needs repair, wishlist, retired), quantity, location, make_model, serial, cost (price USD), purchase_url, purchased_on, tags, links, images, notes. A set list's "equipment" is the list of equipment ids to bring to that show.
+- Tasks: Jon's to-dos (title, done, due date, notes, optional setlist_id for a show's prep). Use them for reminders like "charge the mic before Saturday" — work out the date from today.
+- Notes: free-form notes (title, body, pinned) for ideas, patter, scripts, contacts, anything.
+
 How to work:
 - Look things up before changing them; never invent ids. Use the id returned by a tool.
 - Act on clear requests without asking. When Jon sends a photo of a prop, a receipt or a page from a catalog, read it and fill in what you can; attach the photo to the trick if he wants it saved.
@@ -104,6 +108,7 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
         venue: { type: "string" },
         date: strProp("YYYY-MM-DD, or empty"),
         notes: { type: "string" },
+        equipment: { type: "array", items: { type: "string" }, description: "Full replacement list of equipment ids to bring" },
         items: {
           type: "array",
           description: "Running order. Each item has trick_id (a trick) or title (a free-text bit like 'Intro' or 'Q&A').",
@@ -172,6 +177,78 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
       },
       required: ["kind", "id"],
     },
+  },
+  {
+    name: "search_equipment",
+    description: "List equipment, optionally filtered by words or status. No filters lists everything.",
+    input_schema: { type: "object", properties: { query: { type: "string" }, status: { type: "string", enum: [...data.GEAR_STATUSES] } } },
+  },
+  {
+    name: "save_equipment",
+    description: "Create equipment (omit id) or update it (give id). Only the fields you include change. add_images attaches photos from the chat.",
+    input_schema: {
+      type: "object",
+      properties: {
+        id: { type: "string" }, name: { type: "string" }, category: strProp("e.g. audio, lighting, staging, cases, tech"),
+        status: { type: "string", enum: [...data.GEAR_STATUSES] }, quantity: { type: "number" }, location: { type: "string" },
+        make_model: { type: "string" }, serial: { type: "string" }, cost: { type: ["number", "null"] }, purchase_url: { type: "string" },
+        purchased_on: strProp("YYYY-MM-DD or empty"), tags: { type: "array", items: { type: "string" } }, notes: { type: "string" },
+        add_images: { type: "array", items: { type: "string" } },
+      },
+    },
+  },
+  {
+    name: "delete_equipment",
+    description: "Permanently delete equipment. Only after Jon confirms.",
+    input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
+    name: "list_tasks",
+    description: "List tasks. By default only open ones; set include_done to see finished ones too.",
+    input_schema: { type: "object", properties: { include_done: { type: "boolean" }, setlist_id: strProp("Only tasks for this set list") } },
+  },
+  {
+    name: "save_task",
+    description: "Create a task (omit id) or update one (give id): rename, set due date, tick it off (done: true), attach to a set list. Only the fields you include change.",
+    input_schema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        title: { type: "string" },
+        done: { type: "boolean" },
+        due: strProp("YYYY-MM-DD, or empty for no date"),
+        notes: { type: "string" },
+        setlist_id: { type: ["string", "null"] },
+      },
+    },
+  },
+  {
+    name: "delete_task",
+    description: "Permanently delete a task. Only after Jon confirms (ticking it off is usually what he wants).",
+    input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
+    name: "search_notes",
+    description: "Find notes. Returns titles and a short preview; call get_note for the full text. No query lists them all.",
+    input_schema: { type: "object", properties: { query: { type: "string" } } },
+  },
+  {
+    name: "get_note",
+    description: "Get the full text of one note.",
+    input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
+    name: "save_note",
+    description: "Create a note (omit id) or update one (give id). body replaces the whole text, so to add to a note, get it first and send the combined text.",
+    input_schema: {
+      type: "object",
+      properties: { id: { type: "string" }, title: { type: "string" }, body: { type: "string" }, pinned: { type: "boolean" } },
+    },
+  },
+  {
+    name: "delete_note",
+    description: "Permanently delete a note. Only after Jon confirms.",
+    input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
   },
   {
     name: "delete_playlist",
@@ -267,6 +344,70 @@ async function runTool(env: Env, origin: string, name: string, input: Json): Pro
       if (!p || !(await data.deletePlaylist(env, p.id))) return { result: "No playlist with that id." };
       await shares.deleteShare(env, "playlist", p.id);
       return { result: "Deleted.", step: `Deleted playlist “${p.name}”`, changed: "playlists" };
+    }
+    case "search_equipment": {
+      const words = (typeof input.query === "string" ? input.query : "").toLowerCase().split(/\s+/).filter(Boolean);
+      const hits = (await data.listEquipment(env)).filter((g) => (!input.status || g.status === input.status)
+        && words.every((w) => [g.name, g.category, g.location, g.make_model, g.notes, ...g.tags].join(" ").toLowerCase().includes(w)));
+      return { result: JSON.stringify(hits.map(({ links, created_at, updated_at, ...g }) => ({ ...g, images: g.images.length }))) };
+    }
+    case "save_equipment": {
+      const id = idOf(input);
+      const fields: Json = { ...input };
+      delete fields.id;
+      delete fields.add_images;
+      if (Array.isArray(input.add_images)) {
+        const current = id ? (await data.getEquipment(env, id))?.images ?? [] : [];
+        fields.images = [...current, ...(input.add_images as string[])];
+      }
+      const g = await data.saveEquipment(env, fields, id);
+      return { result: JSON.stringify({ id: g.id, name: g.name, status: g.status }), step: `${id ? "Updated" : "Added"} equipment “${g.name}”`, changed: "equipment" };
+    }
+    case "delete_equipment": {
+      const g = await data.getEquipment(env, String(input.id));
+      if (!g || !(await data.deleteEquipment(env, g.id))) return { result: "No equipment with that id." };
+      return { result: "Deleted.", step: `Deleted equipment “${g.name}”`, changed: "equipment" };
+    }
+    case "list_tasks": {
+      const all = await data.listTasks(env);
+      const sl = typeof input.setlist_id === "string" ? input.setlist_id : "";
+      const shown = all.filter((t) => (input.include_done === true || !t.done) && (!sl || t.setlist_id === sl));
+      return { result: JSON.stringify(shown.map(({ created_at, updated_at, done_at, ...t }) => t)) };
+    }
+    case "save_task": {
+      const id = idOf(input);
+      const fields: Json = { ...input };
+      delete fields.id;
+      const t = await data.saveTask(env, fields, id);
+      const verb = !id ? "Added task" : input.done === true ? "Ticked off" : input.done === false ? "Reopened" : "Updated task";
+      return { result: JSON.stringify(t), step: `${verb} “${t.title}”`, changed: "tasks" };
+    }
+    case "delete_task": {
+      const t = await data.getTask(env, String(input.id));
+      if (!t || !(await data.deleteTask(env, t.id))) return { result: "No task with that id." };
+      return { result: "Deleted.", step: `Deleted task “${t.title}”`, changed: "tasks" };
+    }
+    case "search_notes": {
+      const words = (typeof input.query === "string" ? input.query : "").toLowerCase().split(/\s+/).filter(Boolean);
+      const hits = (await data.listNotes(env)).filter((n) => words.every((w) => `${n.title} ${n.body}`.toLowerCase().includes(w)));
+      return { result: JSON.stringify(hits.map((n) => ({ id: n.id, title: n.title || n.body.split("\n")[0].slice(0, 60), pinned: n.pinned, preview: n.body.slice(0, 200), updated_at: new Date(n.updated_at).toISOString().slice(0, 10) }))) };
+    }
+    case "get_note": {
+      const n = await data.getNote(env, String(input.id));
+      return { result: n ? JSON.stringify(n) : "No note with that id." };
+    }
+    case "save_note": {
+      const id = idOf(input);
+      const fields: Json = { ...input };
+      delete fields.id;
+      const n = await data.saveNote(env, fields, id);
+      const name = n.title || n.body.split("\n")[0].slice(0, 40) || "note";
+      return { result: JSON.stringify({ id: n.id, title: n.title }), step: `${id ? "Updated" : "Saved"} note “${name}”`, changed: "notes" };
+    }
+    case "delete_note": {
+      const n = await data.getNote(env, String(input.id));
+      if (!n || !(await data.deleteNote(env, n.id))) return { result: "No note with that id." };
+      return { result: "Deleted.", step: `Deleted note “${n.title || "untitled"}”`, changed: "notes" };
     }
     case "share_link": {
       const kind = String(input.kind) as shares.Kind;
