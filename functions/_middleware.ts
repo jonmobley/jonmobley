@@ -1,5 +1,6 @@
 // Every page request passes through here (see _routes.json), for two jobs:
-// 1. The repo's source files are uploaded with the site; never serve them.
+// 1. Never serve the repo's source files. They aren't uploaded at all (scripts/deploy.sh
+//    leaves them out); this check is a backstop.
 // 2. Count page views for Backstage → Stats (people, AI assistants, crawlers). Counting
 //    happens after the page is sent and can never break or slow a page.
 import type { Env } from "../server/env";
@@ -16,7 +17,12 @@ const HIDDEN_FILES = new Set([
 export const onRequest: PagesFunction<Env> = async ({ request, next, env, waitUntil }) => {
   const url = new URL(request.url);
   const path = url.pathname;
-  const lower = path.toLowerCase();
+  // Compare the decoded, tidied address so tricks like /%73erver/ or //server/ can't slip by.
+  let lower = path;
+  try {
+    lower = decodeURIComponent(path);
+  } catch {}
+  lower = lower.toLowerCase().replace(/\/{2,}/g, "/");
   if (HIDDEN.some((p) => lower.startsWith(p) || lower === p.slice(0, -1)) || HIDDEN_FILES.has(lower)) {
     return new Response("Not found", { status: 404 });
   }
