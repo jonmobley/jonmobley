@@ -41,3 +41,9 @@ test("a share link that doesn't exist says so", async ({ page, request }) => {
   await expect(page.getByRole("heading", { name: "Not available" })).toBeVisible();
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 });
+
+test("trick cards sit side by side in grid view", async ({ page }) => {
+  // Signed-out pages can't show the library, so check the stylesheet rule directly.
+  const res = await page.request.get("/backstage/app.css");
+  expect(await res.text()).toMatch(/\.grid \{ display: grid;/);
+});
