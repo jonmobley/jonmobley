@@ -314,6 +314,14 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 
 /* stats — series colors validated (dataviz validator, dark surface #212121) */
 :root { --s-blue: #3987e5; --s-orange: #d95926; --s-aqua: #199e70; }
+.booking-set { max-width: 720px; display: flex; flex-direction: column; gap: 18px; }
+.booking-set a { color: inherit; text-decoration: underline; }
+.booking-box { display: flex; flex-direction: column; gap: 10px; background: var(--card); border: 1px solid #333; border-radius: 14px; padding: 14px 16px; }
+.booking-box .check-line { color: var(--ink); font-size: 15px; }
+.booking-box h3 { margin: 0 0 2px; font-size: 15px; }
+.booking-cat { display: flex; flex-direction: column; gap: 2px; }
+.booking-cat .muted-sm { padding-left: 24px; }
+textarea.input { resize: vertical; font: inherit; }
 .stats { max-width: 1000px; display: flex; flex-direction: column; gap: 14px; }
 .seg.wide button { width: auto; padding: 0 12px; font-size: 13px; font-weight: 500; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }

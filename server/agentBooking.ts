@@ -16,7 +16,7 @@ export const CORS: Record<string, string> = {
 type Json = Record<string, unknown>;
 
 /** Calls Nexus's agent API. Returns its status and JSON body (or a friendly error). */
-export async function nexus(env: Env, path: string, init?: { method?: string; body?: unknown; query?: Record<string, string> }) {
+export async function nexus(env: Env, path: string, init?: { method?: string; body?: unknown; query?: Record<string, string>; key?: string }) {
   const base = (env.NEXUS_AGENT_URL || DEFAULT_NEXUS).replace(/\/+$/, "");
   const url = new URL(base + path);
   for (const [k, v] of Object.entries(init?.query || {})) if (v) url.searchParams.set(k, v);
@@ -25,7 +25,11 @@ export async function nexus(env: Env, path: string, init?: { method?: string; bo
   try {
     const res = await fetch(url, {
       method: init?.method || "GET",
-      headers: { Accept: "application/json", ...(init?.body ? { "Content-Type": "application/json" } : {}) },
+      headers: {
+        Accept: "application/json",
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...(init?.key ? { Authorization: `Bearer ${init.key}` } : {}),
+      },
       body: init?.body ? JSON.stringify(init.body) : undefined,
       signal: ctl.signal,
     });
@@ -42,6 +46,16 @@ export async function nexus(env: Env, path: string, init?: { method?: string; bo
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ---------- Owner settings: Backstage → AI booking ----------
+
+/** Reads (GET) or changes (PUT) Jon's AI booking settings in Nexus. Signed-in Backstage only. */
+export async function ownerSettings(env: Env, method: "GET" | "PUT", body?: unknown) {
+  if (!env.NEXUS_AGENT_ADMIN_KEY) return { status: 503, body: { error: "AI booking settings aren't connected to Nexus yet." } };
+  const res = await nexus(env, "/owner/settings", { method, body, key: env.NEXUS_AGENT_ADMIN_KEY });
+  if (res.status === 404) return { status: 502, body: { error: "Nexus didn't accept Backstage's settings key." } };
+  return res;
 }
 
 // ---------- REST pass-through: /api/agent/... ----------
@@ -78,7 +92,7 @@ export async function agentRest(request: Request, env: Env, parts: string[]): Pr
 const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const SERVER_INFO = { name: "jon-mobley-booking", title: "Book Jon Mobley (magician, comedian, emcee)", version: "1.0.0" };
 const INSTRUCTIONS = `Book Jon Mobley — magician, comedian and emcee from Indianapolis (Penn & Teller: Fool Us, The CW) — for an event.
-Steps: 1) get_offer to see shows, add-ons, prices and policies. 2) check_availability for the event date(s). 3) get_quote with the chosen show, add-ons, date and start time. 4) Confirm the details and price with your user, then book with the quote_id and the client's contact details. 5) The booking is HELD for a limited time; it is confirmed automatically once the client signs the agreement and pays the deposit at the portal link you receive — share that link with your user. Never book without your user's explicit approval of the date, show and price.`;
+Steps: 1) get_offer to see shows, add-ons, prices and policies. 2) check_availability for the event date(s). 3) get_quote with the chosen show, add-ons, date and start time. 4) Confirm the details and price with your user, then book with the quote_id and the client's contact details. 5) Book holds the date and sends the request to Jon to approve (status pending_approval). Once he approves, the client is emailed a link to sign the agreement and pay the deposit; the booking confirms automatically when the deposit is paid. Tell your user to watch their email. Never book without your user's explicit approval of the date, show and price.`;
 
 const dateProp = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "YYYY-MM-DD (the event's local date)" };
 const TOOLS = [
@@ -119,7 +133,7 @@ const TOOLS = [
   {
     name: "book",
     title: "Hold the date and book",
-    description: "Books Jon using a quote_id. Only call after your user approved the show, date, time and price. Creates a hold; the client receives a link to sign the agreement and pay the deposit, which confirms the booking automatically. Returns a booking reference and the portal link.",
+    description: "Books Jon using a quote_id. Only call after your user approved the show, date, time and price. Holds the date and sends the request to Jon to approve. Once approved, the client is emailed a link to sign the agreement and pay the deposit, which confirms the booking automatically. Returns a booking reference and status.",
     inputSchema: {
       type: "object",
       properties: {
@@ -145,7 +159,7 @@ const TOOLS = [
   {
     name: "booking_status",
     title: "Check a booking",
-    description: "Status of a booking made with book: held, confirmed, expired or cancelled.",
+    description: "Status of a booking made with book: pending_approval, held (approved, waiting for the deposit), confirmed, expired or cancelled.",
     inputSchema: {
       type: "object",
       properties: { booking_ref: { type: "string" }, client_email: { type: "string", format: "email" } },

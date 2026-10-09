@@ -4,7 +4,7 @@ import * as auth from "../../server/auth";
 import * as data from "../../server/data";
 import * as chat from "../../server/chat";
 import * as shares from "../../server/shares";
-import { agentRest } from "../../server/agentBooking";
+import { agentRest, ownerSettings } from "../../server/agentBooking";
 import { refreshLinkImage } from "../../server/linkPreview";
 import * as stats from "../../server/stats";
 
@@ -133,6 +133,11 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
         const result = await auth.changePassword(env, String(b.current ?? ""), String(b.next ?? ""));
         if ("error" in result) return fail(result.error);
         return json({ ok: true }, 200, { "Set-Cookie": cookieFor(request, result.cookie) });
+      }
+      case "agent-settings": {
+        if (method !== "GET" && method !== "PUT") break;
+        const res = await ownerSettings(env, method, method === "PUT" ? await body(request) : undefined);
+        return json(res.body, res.status);
       }
       case "stats": {
         if (method !== "GET") break;

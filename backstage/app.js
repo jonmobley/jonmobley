@@ -173,6 +173,7 @@ const PATHS = {
   upload: "M12 21V9M7 14l5-5 5 5M5 3h14",
   edit: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z",
   rows: "M3 5h18M3 12h18M3 19h18",
+  calendar: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
   share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13",
 };
 const Icon = ({ name, size }) =>
@@ -260,6 +261,7 @@ const SECTIONS = [
   ["files", "Files", "Files", "folder"],
   ["links", "Links", "Links", "link"],
   ["stats", "Stats", "Stats", "chart"],
+  ["booking", "AI booking", "Booking", "calendar"],
 ];
 // Phones show these in the bottom bar; the rest live under "More".
 const PHONE_MAIN = ["home", "tricks", "sets", "tasks"];
@@ -334,6 +336,7 @@ function Backstage({ onOut }) {
   else if (section === "files") view = html`<${FilesPage} ctx=${ctx} />`;
   else if (section === "links") view = html`<${LinksPage} ctx=${ctx} />`;
   else if (section === "stats") view = html`<${StatsPage} ctx=${ctx} />`;
+  else if (section === "booking") view = html`<${AgentBookingPage} ctx=${ctx} />`;
   else if (section === "tricks" && id) view = html`<${TrickEditor} key=${id} id=${id} ctx=${ctx} />`;
   else if (section === "tricks") view = html`<${TrickList} ctx=${ctx} />`;
   else view = html`<${HomePage} ctx=${ctx} />`;
@@ -2407,6 +2410,86 @@ function Chat({ ctx }) {
       </div>
     </div>
   </aside>`;
+}
+
+// ---------- AI booking ----------
+
+// The settings live in Nexus; Backstage reads and saves them through /api/agent-settings.
+const BOOKING_NUMBERS = [
+  ["depositPercent", "DEPOSIT (%)"],
+  ["holdHours", "HOLD THE DATE FOR (HOURS)"],
+  ["minNoticeDays", "MINIMUM NOTICE (DAYS)"],
+  ["bufferHours", "GAP AROUND OTHER EVENTS (HOURS)"],
+  ["maxActiveHolds", "MOST OPEN REQUESTS AT ONCE"],
+];
+
+function AgentBookingPage({ ctx }) {
+  const [data, setData] = useState(null);
+  const [form, setForm] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api("agent-settings").then((d) => { setData(d); setForm(d.settings); }).catch((e) => setErr(e.message));
+  }, []);
+  const set = (k, v) => setForm({ ...form, [k]: v });
+  const dirty = form && data && JSON.stringify(form) !== JSON.stringify(data.settings);
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      const d = await api("agent-settings", { method: "PUT", body: form });
+      setData(d);
+      setForm(d.settings);
+      ctx.setToast("AI booking settings saved");
+    } catch (e2) {
+      setErr(e2.message);
+    }
+    setBusy(false);
+  };
+  const toggleCat = (c) =>
+    set("packageCategories", form.packageCategories.includes(c) ? form.packageCategories.filter((x) => x !== c) : [...form.packageCategories, c]);
+  const money = (n) => `$${Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  return html`
+    <div class="bar">
+      <h1>AI booking</h1>
+      <div class="grow"></div>
+      ${form && html`<button class="btn primary" disabled=${busy || !dirty} onClick=${save}>${busy ? "Saving…" : "Save"}</button>`}
+    </div>
+    <div class="scroll pad">
+      ${!form && !err && html`<p class="muted-sm">Loading…</p>`}
+      ${!form && err && html`<div class="empty"><h2>Couldn't load AI booking</h2><p>${err}</p></div>`}
+      ${form && html`<form class="booking-set" onSubmit=${save}>
+        <p class="muted-sm">AI assistants like ChatGPT and Claude can check your dates, quote your packages and ask to book you
+          (<a href="/agents/" target="_blank" rel="noopener">jonmobley.com/agents</a>). Prices come from your packages in Nexus.</p>
+        <section class="booking-box">
+          <label class="check-line"><input type="checkbox" checked=${form.enabled} onChange=${(e) => set("enabled", e.target.checked)} /> Let AI assistants book me</label>
+          <label class="check-line"><input type="checkbox" checked=${form.requireApproval} onChange=${(e) => set("requireApproval", e.target.checked)} /> Text me to approve each request first</label>
+          <p class="muted-sm">${form.requireApproval
+            ? "You get a text and an email with Approve and Decline buttons. The client hears nothing until you approve; then they get the agreement and deposit link."
+            : "The client gets the agreement and deposit link right away. It confirms when they pay the deposit."}</p>
+        </section>
+        <div class="cols">
+          ${BOOKING_NUMBERS.map(([k, label]) => html`<${Field} label=${label}>
+            <input class="input" type="number" inputmode="numeric" value=${form[k]} onInput=${(e) => set(k, e.target.value === "" ? "" : Number(e.target.value))} />
+          <//>`)}
+        </div>
+        <section class="booking-box">
+          <h3>Packages AI assistants can book</h3>
+          ${data.categories.map((c) => {
+            const items = data.packages.filter((p) => p.category === c);
+            return html`<div class="booking-cat">
+              <label class="check-line"><input type="checkbox" checked=${form.packageCategories.includes(c)} onChange=${() => toggleCat(c)} /> ${c}</label>
+              <p class="muted-sm">${items.map((p) => `${p.name} (${money(p.price)})`).join(" · ")}</p>
+            </div>`;
+          })}
+        </section>
+        <${Field} label="NOTE SHOWN WITH EVERY QUOTE">
+          <textarea class="input" rows="3" value=${form.policyText} onInput=${(e) => set("policyText", e.target.value)}></textarea>
+        <//>
+        ${err && html`<div class="msg-err">${err}</div>`}
+      </form>`}
+    </div>`;
 }
 
 // ---------- settings ----------

@@ -12,8 +12,8 @@ AI agents can check availability, get an exact quote and book Jon directly — n
   - GET /api/agent/availability?from=YYYY-MM-DD&to=YYYY-MM-DD — up to 92 days
   - POST /api/agent/quote — {packageId, addonIds?, date, startTime "HH:MM", guestCount?, eventType?, venueAddress?} → quoteId (valid 24h)
   - POST /api/agent/book — {quoteId, idempotencyKey, client:{name,email,phone,company?}, event:{title?,type?,venueName?,venueAddress,guestCount?,notes?}, agent:{name}}
-  - GET /api/agent/bookings/{ref}?email= — held | confirmed | expired | cancelled
-- Rules: only book after your user approves the date, time, show and price. A booking is held for a limited time and confirmed automatically when the client signs the agreement and pays the deposit at the portal link returned by book.
+  - GET /api/agent/bookings/{ref}?email= — pending_approval | held | confirmed | expired | cancelled
+- Rules: only book after your user approves the date, time, show and price. Book holds the date and sends the request to Jon (status pending_approval). Once Jon approves, the client is emailed a link to sign the agreement and pay the deposit; the booking confirms automatically when the deposit is paid. Links go only to the client's email, never to you.
 
 ## For people
 
