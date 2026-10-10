@@ -201,6 +201,9 @@ async function callTool(env: Env, name: string, a: Json): Promise<{ status: numb
         },
       });
     case "booking_status":
+      if (!s(a.booking_ref) || !s(a.client_email)) {
+        return { status: 400, body: { error: "invalid_request", message: "booking_status needs booking_ref (from book) and client_email." } };
+      }
       return nexus(env, `/bookings/${encodeURIComponent(s(a.booking_ref) || "")}`, { query: { email: s(a.client_email) || "" } });
     default:
       return { status: 404, body: { error: `Unknown tool ${name}` } };
