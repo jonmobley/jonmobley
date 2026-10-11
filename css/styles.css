@@ -166,6 +166,11 @@ a {
   object-fit: cover;
 }
 
+/* Phones show the icons under the logo instead (see the phone layout below). */
+.social-phone {
+  display: none;
+}
+
 .hero-left {
   grid-column: 1;
   display: flex;
@@ -689,10 +694,15 @@ a {
     font-size: 25px;
   }
 
-  .social {
-    order: 6;
-    flex-direction: row-reverse;
+  /* Icons sit on the photo, under the logo and above Jon's head. */
+  .social-desktop {
+    display: none;
+  }
+
+  .social-phone {
+    display: flex;
     gap: 12px;
+    margin-top: 6px;
   }
 
   .as-seen {
