@@ -1,0 +1,38 @@
+/* Shared look for the service pages (/corporate-events/, /weddings/, /emcee/). */
+:focus, :focus-visible { outline: none !important; }
+* { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+body { margin: 0; background: #000; color: #fff; font: 17px/1.65 "Montserrat", system-ui, sans-serif; }
+main { max-width: 820px; margin: 0 auto; padding: 40px 20px 80px; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 40px; }
+.logo { display: block; width: 170px; }
+.cta { display: inline-block; background: #469AE1; color: #fff; text-decoration: none; font-weight: 600; font-size: 15px; border-radius: 999px; padding: 10px 20px; white-space: nowrap; }
+.cta:hover { background: #2B72AE; }
+.eyebrow { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: #C9A669; margin: 0 0 10px; }
+h1 { font-size: clamp(30px, 6vw, 46px); line-height: 1.1; margin: 0 0 16px; letter-spacing: -0.01em; }
+.lead { color: #ccc; font-size: 19px; margin: 0 0 28px; }
+.hero { width: 100%; height: auto; border-radius: 16px; display: block; margin: 0 0 8px; aspect-ratio: 16 / 8; object-fit: cover; object-position: 55% 30%; }
+.quotes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 28px 0 8px; }
+.quotes figure { margin: 0; background: #111; border: 1px solid #262626; border-radius: 14px; padding: 16px 18px; }
+.quotes blockquote { margin: 0 0 6px; font-weight: 700; font-size: 18px; }
+.quotes figcaption { color: #999; font-size: 14px; line-height: 1.4; }
+h2 { font-size: 24px; line-height: 1.2; margin: 44px 0 12px; }
+p { color: #ddd; margin: 0 0 14px; }
+.shows { display: grid; gap: 12px; margin: 16px 0; }
+.show { background: #111; border: 1px solid #262626; border-radius: 14px; padding: 18px 20px; }
+.show h3 { margin: 0 0 6px; font-size: 18px; }
+.show p { margin: 0; color: #bbb; font-size: 16px; }
+details { border-bottom: 1px solid #222; padding: 14px 0; }
+summary { cursor: pointer; font-weight: 600; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; float: right; color: #C9A669; font-weight: 400; }
+details[open] summary::after { content: "–"; }
+details p { margin: 10px 0 0; color: #bbb; }
+.book { margin-top: 48px; background: #111; border: 1px solid #262626; border-radius: 16px; padding: 24px; text-align: center; }
+.book p { color: #bbb; }
+a { color: #469AE1; }
+.more { margin-top: 40px; color: #999; font-size: 15px; }
+.more a { margin-right: 14px; }
+@media (max-width: 480px) {
+  .logo { width: 130px; }
+  .cta { padding: 9px 16px; font-size: 14px; }
+}

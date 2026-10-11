@@ -540,6 +540,14 @@ a {
   margin-top: 8px;
 }
 
+.site-links {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px;
+  width: min(100%, var(--site)); margin: 43px auto 0;
+  font-family: Raleway, sans-serif; font-size: 15px;
+}
+.site-links a { color: #444; text-decoration: none; }
+.site-links a:hover { color: #000; text-decoration: underline; }
+.site-links + .legal { margin-top: 18px; }
 .legal {
   width: min(100%, var(--site));
   margin: 43px auto 0;
