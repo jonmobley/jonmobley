@@ -420,6 +420,79 @@ a {
   line-height: 1.1;
 }
 
+/* Client reviews (pull-quotes from Google reviews) */
+
+.reviews {
+  background: var(--black);
+  padding: 8px 16px 64px;
+  text-align: center;
+}
+
+.reviews h2 {
+  margin: 0 0 24px;
+  font-family: "League Spartan", Montserrat, sans-serif;
+  font-weight: 400;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--white);
+}
+
+.reviews-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  width: min(910px, 100%);
+  margin: 0 auto;
+  text-align: left;
+}
+
+.reviews figure {
+  margin: 0;
+  background: #111;
+  border: 1px solid #262626;
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.reviews blockquote {
+  margin: 0 0 10px;
+  font-family: Montserrat, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #eee;
+}
+
+.reviews figcaption {
+  font-family: Montserrat, sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gold);
+}
+
+.reviews figcaption span {
+  display: block;
+  font-weight: 400;
+  color: #999;
+}
+
+.reviews .rating {
+  margin: 22px 0 0;
+  font-family: Montserrat, sans-serif;
+  font-size: 15px;
+  color: #bbb;
+}
+
+.reviews .stars {
+  color: var(--quote-gold);
+  letter-spacing: 2px;
+  margin-right: 6px;
+}
+
+.reviews .rating a {
+  color: var(--button);
+}
+
 /* Contact */
 
 .contact {
