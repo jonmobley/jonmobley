@@ -17,6 +17,12 @@ h1 { font-size: clamp(30px, 6vw, 46px); line-height: 1.1; margin: 0 0 16px; lett
 .quotes figcaption { color: #999; font-size: 14px; line-height: 1.4; }
 h2 { font-size: 24px; line-height: 1.2; margin: 44px 0 12px; }
 p { color: #ddd; margin: 0 0 14px; }
+.reviews { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 16px 0 12px; }
+.reviews figure { margin: 0; background: #111; border: 1px solid #262626; border-radius: 14px; padding: 18px 20px; }
+.reviews blockquote { margin: 0 0 8px; font-size: 16px; line-height: 1.5; color: #eee; }
+.reviews figcaption { color: #999; font-size: 14px; }
+.rating { color: #bbb; font-size: 15px; }
+.stars { color: #FFCF60; letter-spacing: 2px; margin-right: 6px; }
 .shows { display: grid; gap: 12px; margin: 16px 0; }
 .show { background: #111; border: 1px solid #262626; border-radius: 14px; padding: 18px 20px; }
 .show h3 { margin: 0 0 6px; font-size: 18px; }

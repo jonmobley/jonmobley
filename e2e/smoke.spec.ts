@@ -81,6 +81,8 @@ for (const [path, heading] of [
     const data = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) || "{}");
     const types = data["@graph"].map((n: { "@type": string }) => n["@type"]);
     expect(types).toEqual(expect.arrayContaining(["Service", "FAQPage"]));
+    await expect(page.locator(".reviews figure")).toHaveCount(3);
+    await expect(page.getByRole("link", { name: "Read them on Google" })).toHaveAttribute("href", "https://g.page/jon-mobley");
     expect(errors).toEqual([]);
   });
 }
@@ -94,6 +96,12 @@ test("home page links to the service pages and has valid search data", async ({ 
   const person = data["@graph"].find((n: { "@type": string }) => n["@type"] === "Person");
   expect(person.telephone).toBe("+13174261270");
   expect(person.email).toBe("booking@jonmobley.com");
+});
+
+test("home page shows client reviews linked to Google", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("section.reviews figure")).toHaveCount(4);
+  await expect(page.getByRole("link", { name: "Read them on Google" })).toHaveAttribute("href", "https://g.page/jon-mobley");
 });
 
 test("unknown addresses show the 404 page", async ({ page }) => {
