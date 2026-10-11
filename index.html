@@ -47,21 +47,79 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "Person",
-        "name": "Jon Mobley",
-        "jobTitle": "Magician",
-        "url": "https://jonmobley.com/",
-        "email": "booking@jonmobley.com",
-        "telephone": "+13174261270",
-        "address": {
-          "@type": "PostalAddress",
-          "addressLocality": "Indianapolis",
-          "addressRegion": "IN",
-          "addressCountry": "US"
-        }
+        "@graph": [
+          {
+            "@type": "Person",
+            "@id": "https://jonmobley.com/#jon",
+            "name": "Jon Mobley",
+            "jobTitle": ["Magician", "Comedian", "Emcee"],
+            "description": "Indianapolis magician, comedian and emcee. Seen on Penn & Teller: Fool Us and The CW, and a featured performer at the Chicago Magic Lounge.",
+            "url": "https://jonmobley.com/",
+            "image": "https://jonmobley.com/images/og-home.jpg",
+            "email": "booking@jonmobley.com",
+            "telephone": "+13174261270",
+            "homeLocation": { "@type": "City", "name": "Indianapolis, Indiana" },
+            "knowsAbout": ["Magic", "Sleight of hand", "Mentalism", "Comedy", "Emceeing", "Corporate entertainment", "Wedding entertainment"],
+            "worksFor": { "@id": "https://jonmobley.com/#business" },
+            "sameAs": [
+              "https://www.facebook.com/mobleymagic",
+              "https://www.instagram.com/mobleymagic",
+              "https://www.youtube.com/@jonmobley"
+            ]
+          },
+          {
+            "@type": "EntertainmentBusiness",
+            "@id": "https://jonmobley.com/#business",
+            "name": "Mobley Productions LLC",
+            "alternateName": "Jon Mobley",
+            "url": "https://jonmobley.com/",
+            "image": "https://jonmobley.com/images/og-home.jpg",
+            "email": "booking@jonmobley.com",
+            "telephone": "+13174261270",
+            "address": {
+              "@type": "PostalAddress",
+              "addressLocality": "Indianapolis",
+              "addressRegion": "IN",
+              "addressCountry": "US"
+            },
+            "areaServed": [
+              { "@type": "City", "name": "Indianapolis" },
+              { "@type": "State", "name": "Indiana" },
+              { "@type": "Country", "name": "United States" }
+            ],
+            "founder": { "@id": "https://jonmobley.com/#jon" },
+            "sameAs": [
+              "https://www.facebook.com/mobleymagic",
+              "https://www.instagram.com/mobleymagic",
+              "https://www.youtube.com/@jonmobley"
+            ],
+            "hasOfferCatalog": {
+              "@type": "OfferCatalog",
+              "name": "Shows",
+              "itemListElement": [
+                { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Sleight of Mind comedy stage show", "description": "A 60-minute comedy magic stage show for corporate events, galas and fundraisers." } },
+                { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Strolling magic", "description": "Close-up walk-around magic for cocktail hours, receptions and parties, 1 to 3 hours." } },
+                { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Emcee and host", "description": "Event emcee for galas, fundraisers, awards nights and corporate events, with magic throughout." } },
+                { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Wedding magic", "description": "Walk-around magic for wedding cocktail hours and receptions." } }
+              ]
+            },
+            "potentialAction": {
+              "@type": "ReserveAction",
+              "target": "https://jonmobley.com/booking/",
+              "name": "Book Jon Mobley"
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://jonmobley.com/#site",
+            "url": "https://jonmobley.com/",
+            "name": "Jon Mobley",
+            "publisher": { "@id": "https://jonmobley.com/#business" }
+          }
+        ]
       }
     </script>
-    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/css/styles.css?v=2" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -180,6 +238,12 @@
           >
         </div>
       </div>
+      <nav class="site-links" aria-label="Services">
+        <a href="/corporate-events/">Corporate events</a>
+        <a href="/weddings/">Weddings</a>
+        <a href="/emcee/">Emcee &amp; fundraisers</a>
+        <a href="/booking/">Booking</a>
+      </nav>
       <p class="legal">
         Copyright © 2026 Mobley Productions LLC.&nbsp; Indianapolis, IN USA.&nbsp; Laugh and Be Amazed
       </p>

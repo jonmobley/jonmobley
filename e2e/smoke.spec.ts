@@ -68,6 +68,34 @@ test("Seussical page opens with its calendar", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+for (const [path, heading] of [
+  ["/corporate-events/", "Corporate magician and comedian in Indianapolis"],
+  ["/weddings/", "Wedding magician in Indianapolis"],
+  ["/emcee/", "Event emcee and fundraiser host in Indianapolis"],
+] as const) {
+  test(`${path} service page has shows, FAQ and search data`, async ({ page }) => {
+    const errors = watchErrors(page);
+    await page.goto(path);
+    await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Check your date" }).first()).toHaveAttribute("href", "/booking/");
+    const data = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) || "{}");
+    const types = data["@graph"].map((n: { "@type": string }) => n["@type"]);
+    expect(types).toEqual(expect.arrayContaining(["Service", "FAQPage"]));
+    expect(errors).toEqual([]);
+  });
+}
+
+test("home page links to the service pages and has valid search data", async ({ page }) => {
+  await page.goto("/");
+  for (const name of ["Corporate events", "Weddings", "Emcee & fundraisers"]) {
+    await expect(page.locator(".site-links").getByRole("link", { name })).toBeAttached();
+  }
+  const data = JSON.parse((await page.locator('script[type="application/ld+json"]:not(.w-json-ld)').textContent()) || "{}");
+  const person = data["@graph"].find((n: { "@type": string }) => n["@type"] === "Person");
+  expect(person.telephone).toBe("+13174261270");
+  expect(person.email).toBe("booking@jonmobley.com");
+});
+
 test("unknown addresses show the 404 page", async ({ page }) => {
   await page.goto("/no-such-page/");
   await expect(page.locator("body")).toBeVisible();
