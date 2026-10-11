@@ -22,4 +22,6 @@ AI agents can check availability, get an exact quote and book Jon directly — n
 - [Emcee & fundraisers](https://jonmobley.com/emcee/): event host, nonprofit packages and auctioneer sidekick, with FAQ
 - [Booking form](https://jonmobley.com/booking/): request a date the classic way
 - [How AI booking works](https://jonmobley.com/agents/)
+- [Google reviews](https://g.page/jon-mobley)
+- Social: [YouTube](https://youtube.com/@jonmobley) · [Instagram](https://instagram.com/mobleymagic) · [Facebook](https://facebook.com/mobleymagic)
 - Contact: booking@jonmobley.com · 317-426-1270
