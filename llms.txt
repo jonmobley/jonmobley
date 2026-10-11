@@ -17,9 +17,9 @@ AI agents can check availability, get an exact quote and book Jon directly — n
 
 ## For people
 
-- [Corporate events](https://jonmobley.com/corporate-events/): stage show, strolling magic and emcee for company events, with prices and FAQ
-- [Weddings](https://jonmobley.com/weddings/): walk-around wedding magic packages (1–3 hours), with prices and FAQ
-- [Emcee & fundraisers](https://jonmobley.com/emcee/): event host, nonprofit packages and auctioneer sidekick, with prices and FAQ
+- [Corporate events](https://jonmobley.com/corporate-events/): stage show, strolling magic and emcee for company events, with FAQ
+- [Weddings](https://jonmobley.com/weddings/): walk-around wedding magic packages (1–3 hours), with FAQ
+- [Emcee & fundraisers](https://jonmobley.com/emcee/): event host, nonprofit packages and auctioneer sidekick, with FAQ
 - [Booking form](https://jonmobley.com/booking/): request a date the classic way
 - [How AI booking works](https://jonmobley.com/agents/)
 - Contact: booking@jonmobley.com · 317-426-1270

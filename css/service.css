@@ -21,7 +21,6 @@ p { color: #ddd; margin: 0 0 14px; }
 .show { background: #111; border: 1px solid #262626; border-radius: 14px; padding: 18px 20px; }
 .show h3 { margin: 0 0 6px; font-size: 18px; }
 .show p { margin: 0; color: #bbb; font-size: 16px; }
-.show .price { color: #FFCF60; font-weight: 600; font-size: 15px; margin-top: 8px; }
 details { border-bottom: 1px solid #222; padding: 14px 0; }
 summary { cursor: pointer; font-weight: 600; list-style: none; }
 summary::-webkit-details-marker { display: none; }
