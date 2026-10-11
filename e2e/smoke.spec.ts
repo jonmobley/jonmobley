@@ -80,7 +80,8 @@ for (const [path, heading] of [
     await expect(page.getByRole("link", { name: "Check your date" }).first()).toHaveAttribute("href", "/booking/");
     const data = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) || "{}");
     const types = data["@graph"].map((n: { "@type": string }) => n["@type"]);
-    expect(types).toEqual(expect.arrayContaining(["Service", "FAQPage"]));
+    expect(types).toEqual(expect.arrayContaining(["Service", "FAQPage", "VideoObject"]));
+    await expect(page.locator("a.video")).toHaveCount(1);
     await expect(page.locator(".reviews figure")).toHaveCount(3);
     await expect(page.getByRole("link", { name: "Read them on Google" })).toHaveAttribute("href", "https://g.page/jon-mobley");
     expect(errors).toEqual([]);
@@ -102,6 +103,17 @@ test("home page shows client reviews linked to Google", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("section.reviews figure")).toHaveCount(4);
   await expect(page.getByRole("link", { name: "Read them on Google" })).toHaveAttribute("href", "https://g.page/jon-mobley");
+});
+
+test("about page has facts, search data and a click-to-play video", async ({ page }) => {
+  await page.goto("/about/");
+  await expect(page.getByRole("heading", { level: 1, name: "About Jon Mobley" })).toBeVisible();
+  const data = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) || "{}");
+  const types = data["@graph"].map((n: { "@type": string }) => n["@type"]);
+  expect(types).toEqual(expect.arrayContaining(["AboutPage", "VideoObject"]));
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await page.locator("a.video").click();
+  await expect(page.locator('iframe[src*="youtube-nocookie.com/embed/mG_AhoBb04U"]')).toHaveCount(1);
 });
 
 test("unknown addresses show the 404 page", async ({ page }) => {
