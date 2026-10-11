@@ -265,6 +265,19 @@ const SECTIONS = [
 ];
 // Phones show these in the bottom bar; the rest live under "More".
 const PHONE_MAIN = ["home", "tricks", "sets", "tasks"];
+// Desktop header shows these as tabs; the rest sit in its "More" menu.
+// On a narrow window with chat open, only the phone's main four fit.
+const DESKTOP_MAIN = ["home", "tricks", "gear", "sets", "tasks", "notes"];
+function useMedia(query) {
+  const [on, setOn] = useState(() => matchMedia(query).matches);
+  useEffect(() => {
+    const m = matchMedia(query);
+    const change = () => setOn(m.matches);
+    m.addEventListener("change", change);
+    return () => m.removeEventListener("change", change);
+  }, [query]);
+  return on;
+}
 
 function Backstage({ onOut }) {
   const route = useHashRoute();
@@ -277,6 +290,16 @@ function Backstage({ onOut }) {
   const [files, setFiles] = useState(null);
   const [links, setLinks] = useState(null);
   const [more, setMore] = useState(false);
+  const [topMore, setTopMore] = useState(false);
+  const topMoreRef = useRef(null);
+  useEffect(() => {
+    if (!topMore) return;
+    const close = (e) => { if (!topMoreRef.current?.contains(e.target)) setTopMore(false); };
+    const esc = (e) => { if (e.key === "Escape") setTopMore(false); };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", esc); };
+  }, [topMore]);
   const [pane, setPane] = useState(() => (matchMedia("(max-width: 900px)").matches ? "lib" : "both"));
   // Desktop: the chat panel slides in and out; remembered per device.
   const [chatOpen, setChatOpen] = useState(() => store.get("chat-open") !== "0");
@@ -344,6 +367,8 @@ function Backstage({ onOut }) {
   const setTab = (t) => { setMore(false); go(t); if (pane === "chat") setPane("lib"); };
   const inMore = !PHONE_MAIN.includes(tab);
   const openTasks = (tasks || []).filter((t) => !t.done).length;
+  const narrow = useMedia("(max-width: 1200px)");
+  const mainTabs = narrow && chatOpen ? PHONE_MAIN : DESKTOP_MAIN;
 
   return html`
     <div class=${`shell ${chatOpen ? "" : "chat-closed"}`}>
@@ -353,11 +378,23 @@ function Backstage({ onOut }) {
           <button class="icon-btn sidebar-toggle" onClick=${() => setChatOpen(!chatOpen)} aria-pressed=${chatOpen}
             aria-label=${chatOpen ? "Hide chat" : "Show chat"} title=${chatOpen ? "Hide chat" : "Show chat"}><${Icon} name="sidebar" /></button>
         </div>
-        <nav class="tabs">
-          ${SECTIONS.map(([k, label]) => html`<button class=${`tab ${tab === k && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab(k)}>
-            ${label}${k === "tasks" && openTasks > 0 ? html`<span class="count-badge">${openTasks}</span>` : null}
-          </button>`)}
-        </nav>
+        <div class="tabs-wrap">
+          <nav class="tabs">
+            ${SECTIONS.filter(([k]) => mainTabs.includes(k)).map(([k, label]) => html`<button class=${`tab ${tab === k && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab(k)}>
+              ${label}${k === "tasks" && openTasks > 0 ? html`<span class="count-badge">${openTasks}</span>` : null}
+            </button>`)}
+          </nav>
+          <div class="tab-more" ref=${topMoreRef}>
+            <button class=${`tab ${!mainTabs.includes(tab) && pane !== "chat" ? "on" : ""}`} onClick=${() => setTopMore(!topMore)} aria-expanded=${topMore} aria-haspopup="menu">
+              ${mainTabs.includes(tab) ? "More" : SECTIONS.find(([k]) => k === tab)[1]}<${Icon} name="arrowDown" size=${14} />
+            </button>
+            ${topMore && html`<div class="menu tab-menu" role="menu">
+              ${SECTIONS.filter(([k]) => !mainTabs.includes(k)).map(([k, label, , icon]) => html`<button role="menuitem" class=${`opt ${tab === k ? "on" : ""}`} onClick=${() => { setTopMore(false); setTab(k); }}>
+                <${Icon} name=${icon} size=${16} />${label}
+              </button>`)}
+            </div>`}
+          </div>
+        </div>
         <span class="phone-title">${pane === "chat" ? "Chat" : SECTIONS.find(([k]) => k === tab)[1]}</span>
         <div class="spacer"></div>
         <button class=${`ghost chat-toggle ${pane === "chat" ? "on" : ""}`} onClick=${() => setPane(pane === "chat" ? "lib" : "chat")} aria-label="Chat"><${Icon} name="chat" /><span>Chat</span></button>
