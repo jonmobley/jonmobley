@@ -146,8 +146,9 @@ export async function login(request: Request, env: Env, password: string): Promi
     return { cookie: await sessionCookie(env), role: "owner" };
   }
   const team = await getSetting(env, "team_passcode_hash");
+  // Failed tries are NOT cleared here: otherwise a team member could keep guessing Jon's
+  // password by mixing in successful passcode sign-ins.
   if (team && (await verifyPassword(password, team))) {
-    await env.DB.prepare("DELETE FROM login_attempts WHERE ip = ?").bind(ip).run();
     return { cookie: await teamCookie(env), role: "team" };
   }
   return { error: "That password didn't work.", status: 401 };

@@ -52,8 +52,10 @@ const forTeam = (name: string, item: unknown): unknown => {
   if (Array.isArray(item)) return item.map((x) => forTeam(name, x));
   if (!item || typeof item !== "object") return item;
   const x = item as Json;
-  if (name === "tricks") return { ...x, method: "", cost: null, source: "", purchase_url: "", notes: "", links: [] };
-  if (name === "equipment") return { ...x, cost: null, purchase_url: "" };
+  // Only photos: attached PDFs, videos and documents can hold methods or receipts.
+  const photos = Array.isArray(x.images) ? (x.images as string[]).filter((k) => /\.(jpg|png|webp|gif|heic)$/.test(k)) : [];
+  if (name === "tricks") return { ...x, method: "", cost: null, source: "", purchase_url: "", notes: "", links: [], images: photos };
+  if (name === "equipment") return { ...x, cost: null, purchase_url: "", images: photos };
   return x;
 };
 /** Drops fields a team member may not change (they keep their saved values). */
@@ -75,7 +77,16 @@ async function collection(request: Request, env: Env, name: keyof typeof collect
     const item = await c.get(env, id);
     return item ? out(item) : fail("Not found.", 404);
   }
-  if (id && m === "PUT") return out(await c.save(env, await input(), id));
+  if (id && m === "PUT") {
+    const b = await input();
+    // Team members only ever saw the photos; keep the attachments they couldn't see.
+    if (team && name === "equipment" && Array.isArray(b.images)) {
+      const old = await c.get(env, id);
+      const hidden = ((old as { images?: string[] } | null)?.images ?? []).filter((k) => !/\.(jpg|png|webp|gif|heic)$/.test(k));
+      b.images = [...(b.images as string[]), ...hidden];
+    }
+    return out(await c.save(env, b, id));
+  }
   if (id && m === "DELETE") {
     if (!(await c.remove(env, id))) return fail("Not found.", 404);
     if (name in SHARE_KIND) await shares.deleteShare(env, SHARE_KIND[name as keyof typeof SHARE_KIND], id);
@@ -222,6 +233,8 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
       case "files":
         return await collection(request, env, section, id, team);
       case "media": {
+        // Team members may upload (gear photos, music) and open photos and audio, but not other stored files.
+        if (team && method === "GET" && !/\.(jpg|png|webp|gif|heic|mp3|m4a|wav|aac)$/.test(sub || "")) return fail("That file is for Jon only.", 403);
         if (method === "POST" && !id) {
           const form = await request.formData();
           const file = form.get("file");

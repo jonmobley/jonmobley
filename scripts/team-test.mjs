@@ -57,6 +57,16 @@ r = await team(`equipment/${gear.id}`, { method: "PUT", body: { location: "Van",
 ok(r.status === 200, "team can update gear");
 r = await owner(`equipment/${gear.id}`);
 ok(r.data.location === "Van" && r.data.cost === 250, "…and the price stays as Jon set it");
+// Attachments: photos visible, other files (PDF instructions, receipts) hidden and kept
+const gear2 = (await owner("equipment", { method: "POST", body: { name: "Test Case", images: ["media/aaaaaaaa-0000-0000-0000-000000000001.jpg", "media/aaaaaaaa-0000-0000-0000-000000000002.pdf"] } })).data;
+r = await team(`equipment/${gear2.id}`);
+ok(r.data.images.length === 1 && r.data.images[0].endsWith(".jpg"), "team sees gear photos but not attached documents");
+r = await team(`equipment/${gear2.id}`, { method: "PUT", body: { name: "Test Case 2", images: r.data.images } });
+r = await owner(`equipment/${gear2.id}`);
+ok(r.data.images.length === 2 && r.data.name === "Test Case 2", "a team edit keeps the attachments it couldn't see");
+r = await team("media/media/aaaaaaaa-0000-0000-0000-000000000002.pdf");
+ok(r.status === 403, "team can't open stored documents");
+await owner(`equipment/${gear2.id}`, { method: "DELETE" });
 for (const s of ["notes", "files", "chats", "stats", "agent-settings"]) {
   r = await team(s);
   ok(r.status === 403, `team blocked from ${s}`);
@@ -94,5 +104,14 @@ await owner(`equipment/${gear.id}`, { method: "DELETE" });
 await owner(`notes/${note.id}`, { method: "DELETE" });
 await owner(`tasks/${task.data.id}`, { method: "DELETE" });
 await owner(`setlists/${set.data.id}`, { method: "DELETE" });
+// Last, because it locks this computer out of signing in for 15 minutes:
+// Wrong guesses at Jon's password still count after a successful team sign-in
+const guesser = client();
+for (let i = 0; i < 4; i++) await guesser("login", { method: "POST", body: { password: "wrong guess" } });
+await owner("team-passcode", { method: "PUT", body: { passcode: "crew-2468" } });
+await guesser("login", { method: "POST", body: { password: "crew-2468" } });
+await owner("team-passcode", { method: "DELETE" });
+for (let i = 0; i < 5; i++) r = await guesser("login", { method: "POST", body: { password: "wrong guess" } });
+ok(r.status === 429, "team sign-in doesn't reset the lockout for password guesses");
 console.log(failures ? `\n${failures} FAILED` : "\nAll passed");
 process.exit(failures ? 1 : 0);
