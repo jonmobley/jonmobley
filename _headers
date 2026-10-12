@@ -21,6 +21,10 @@ https://:project.pages.dev/*
 /backstage/*
   X-Robots-Tag: noindex, nofollow
 
+# The offline helper must update as soon as it changes.
+/backstage/sw.js
+  Cache-Control: no-cache
+
 /share/*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer

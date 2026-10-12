@@ -1,11 +1,11 @@
 // Sign-in for /backstage: Jon's password, or an optional team passcode for an assistant
 // (see "Team" below: team members get a limited view, enforced in functions/api).
 // The password is stored as a PBKDF2 hash in the settings table; a signed,
-// HttpOnly cookie keeps the session for 30 days.
+// HttpOnly cookie keeps the session for a year.
 import type { Env } from "./env";
 
 const COOKIE = "bs_session";
-const SESSION_DAYS = 30;
+const SESSION_DAYS = 365; // stay signed in (owner and team) on your own devices
 const PBKDF2_ITERATIONS = 100_000; // Workers' maximum
 const MAX_FAILURES = 8; // per IP per 15 minutes
 const WINDOW_MS = 15 * 60 * 1000;

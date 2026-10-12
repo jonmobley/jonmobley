@@ -58,6 +58,102 @@ class ApiError extends Error {
   constructor(message, status) { super(message); this.status = status; }
 }
 
+// ---------- offline ----------
+// backstage/sw.js keeps the app and the last copy of each list for offline use. Responses it
+// serves from that copy carry X-Backstage-Offline; we flag that so the page can say so.
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/backstage/sw.js", { scope: "/backstage/" }).catch(() => {});
+let offlineNow = false;
+function setOffline(on) {
+  if (on === offlineNow) return;
+  offlineNow = on;
+  window.dispatchEvent(new Event("backstage:offline"));
+}
+addEventListener("online", () => setOffline(false));
+addEventListener("offline", () => setOffline(true));
+function useOffline() {
+  const [on, setOn] = useState(offlineNow || !navigator.onLine);
+  useEffect(() => {
+    const f = () => setOn(offlineNow || !navigator.onLine);
+    addEventListener("backstage:offline", f);
+    addEventListener("online", f);
+    addEventListener("offline", f);
+    return () => { removeEventListener("backstage:offline", f); removeEventListener("online", f); removeEventListener("offline", f); };
+  }, []);
+  return on;
+}
+// ---------- reminders (iPhone app only) ----------
+// Inside the Backstage iPhone app (Capacitor) we schedule local notifications on the phone:
+// 9am the day before and the day of each dated show, 9am on a task's due date, and 9am a week
+// before / on the day a file expires. Rescheduled whenever the lists change; Jon only.
+const notifier = () => window.Capacitor?.isNativePlatform?.() && window.Capacitor.Plugins?.LocalNotifications;
+const REMIND_HOUR = 9;
+const MAX_REMINDERS = 60; // iOS keeps at most 64 pending
+function remindAt(ymd, daysBefore = 0) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d - daysBefore, REMIND_HOUR, 0, 0);
+}
+function reminderId(key) {
+  let h = 0;
+  for (const c of key) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return Math.abs(h) % 2_000_000_000;
+}
+function buildReminders({ setlists, tasks, files }) {
+  const now = Date.now();
+  const out = [];
+  const add = (key, at, title, body, path) => { if (at.getTime() > now + 60_000) out.push({ id: reminderId(key), title, body, schedule: { at, allowWhileIdle: true }, extra: { path } }); };
+  for (const s of setlists || []) {
+    if (!s.date || s.demo) continue;
+    const open = (tasks || []).filter((t) => !t.done && t.setlist_id === s.id).length;
+    const where = [s.venue || s.event, open ? `${open} task${open > 1 ? "s" : ""} to do` : ""].filter(Boolean).join(" · ");
+    add(`set-1-${s.id}-${s.date}`, remindAt(s.date, 1), `Tomorrow: ${s.name}`, where || "Check your set list and gear.", `sets/${s.id}`);
+    add(`set-0-${s.id}-${s.date}`, remindAt(s.date, 0), `Today: ${s.name}`, where || "Have a great show.", `sets/${s.id}`);
+  }
+  for (const t of tasks || []) {
+    if (t.done || !t.due || t.demo) continue;
+    add(`task-${t.id}-${t.due}`, remindAt(t.due), "Due today", t.title, "tasks");
+  }
+  for (const f of files || []) {
+    if (!f.expires || f.demo) continue;
+    add(`file-7-${f.id}-${f.expires}`, remindAt(f.expires, 7), "Expires in a week", f.name, "files");
+    add(`file-0-${f.id}-${f.expires}`, remindAt(f.expires), "Expires today", f.name, "files");
+  }
+  return out.sort((a, b) => a.schedule.at - b.schedule.at).slice(0, MAX_REMINDERS);
+}
+let reminderListener = false;
+async function syncReminders(lists) {
+  const ln = notifier();
+  if (!ln || TEAM) return;
+  try {
+    let perm = await ln.checkPermissions();
+    if (perm.display === "prompt" || perm.display === "prompt-with-rationale") perm = await ln.requestPermissions();
+    if (perm.display !== "granted") return;
+    if (!reminderListener) {
+      reminderListener = true;
+      ln.addListener("localNotificationActionPerformed", (e) => { const p = e?.notification?.extra?.path; if (p) location.hash = `#/${p}`; });
+    }
+    const pending = await ln.getPending();
+    if (pending.notifications?.length) await ln.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
+    const notifications = buildReminders(lists);
+    if (notifications.length) await ln.schedule({ notifications });
+  } catch (e) {
+    console.warn("reminders", e);
+  }
+}
+async function clearReminders() {
+  const ln = notifier();
+  if (!ln) return;
+  try {
+    const pending = await ln.getPending();
+    if (pending.notifications?.length) await ln.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
+  } catch {}
+}
+
+/** Signing out removes the saved copy of the library from this device. */
+async function forgetSavedLibrary() {
+  clearReminders();
+  try { await Promise.all(["bs-data", "bs-media"].map((n) => caches.delete(n))); } catch {}
+}
+
 async function api(path, { method = "GET", body, raw } = {}) {
   const headers = { "X-Backstage": "1" };
   let payload = body;
@@ -69,14 +165,19 @@ async function api(path, { method = "GET", body, raw } = {}) {
   try {
     res = await fetch(`/api/${path}`, { method, headers, body: payload, credentials: "same-origin" });
   } catch {
-    throw new ApiError("Can't reach the server. Check your connection.", 0);
+    setOffline(true);
+    throw new ApiError(method === "GET" ? "Can't reach the server. Check your connection." : "You're offline, so this can't be saved yet. Try again when you're back online.", 0);
   }
+  setOffline(res.headers.get("X-Backstage-Offline") === "1");
   if (raw) {
     if (!res.ok) throw new ApiError((await res.json().catch(() => ({}))).error || "Something went wrong.", res.status);
     return res;
   }
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && path !== "login") window.dispatchEvent(new Event("backstage:signed-out"));
+  if (res.status === 401 && path !== "login") {
+    forgetSavedLibrary();
+    window.dispatchEvent(new Event("backstage:signed-out"));
+  }
   if (!res.ok) throw new ApiError(data.error || "Something went wrong.", res.status);
   return data;
 }
@@ -313,6 +414,7 @@ function Backstage({ session, onSession, onOut }) {
   const chatOpen = chatOpenPref && !TEAM;
   useEffect(() => { store.set("chat-open", chatOpenPref ? "1" : "0"); }, [chatOpenPref]);
   const [settings, setSettings] = useState(false);
+  const offline = useOffline();
   const [toast, setToast] = useState("");
   const [show, setShow] = useState(null);
 
@@ -331,6 +433,12 @@ function Backstage({ session, onSession, onOut }) {
     await Promise.all(jobs).catch((e) => setToast(e.message));
   }, []);
   useEffect(() => { load(); }, [load]);
+  // Reminders follow the real (saved) lists, a moment after they change.
+  useEffect(() => {
+    if (!setlists || !tasks || (!files && !TEAM)) return;
+    const t = setTimeout(() => syncReminders({ setlists, tasks, files }), 800);
+    return () => clearTimeout(t);
+  }, [setlists, tasks, files]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 3200);
@@ -434,6 +542,7 @@ function Backstage({ session, onSession, onOut }) {
     </div>`}
     ${show && html`<${ShowMode} ...${show} onClose=${() => setShow(null)} />`}
     ${settings && html`<${Settings} session=${session} onSession=${onSession} onClose=${() => setSettings(false)} onOut=${onOut} />`}
+    ${offline && html`<div class="offline-bar" role="status">Offline · showing your saved copy</div>`}
     ${toast && html`<div class="toast" role="status">${toast}</div>`}
   `;
 }
@@ -2611,6 +2720,7 @@ function Settings({ session, onSession, onClose, onOut }) {
   };
   const signOut = async () => {
     await api("logout", { method: "POST" }).catch(() => {});
+    await forgetSavedLibrary();
     onOut();
   };
   const close = html`<button type="button" class="btn" onClick=${onClose}>Close</button>`;
@@ -2633,6 +2743,10 @@ function Settings({ session, onSession, onClose, onOut }) {
         ${msg && html`<div class=${msg.ok ? "msg-ok" : "msg-err"}>${msg.text}</div>`}
         <div class="acts"><button class="btn primary" disabled=${busy || !current || next.length < 10}>Change password</button></div>
       </form>
+      ${notifier() && html`<div class="set-sec">
+        <h3>Reminders on this iPhone</h3>
+        <p class="muted-sm">At 9am the day before and the day of each dated show, on a task's due date, and a week before a file expires. Turn them off in iPhone Settings → Backstage → Notifications.</p>
+      </div>`}
       <form class="set-sec" onSubmit=${(e) => { e.preventDefault(); setTeam(code); }}>
         <h3>Team access ${teamOn ? html`<span class="pill-on">On</span>` : html`<span class="muted-sm">Off</span>`}</h3>
         <p class="muted-sm">A shared passcode for an assistant or crew. They sign in with it on the same page and can see set lists, music, gear, tasks and links, and view tricks. They never see methods, prices, notes, files or the chat.</p>
