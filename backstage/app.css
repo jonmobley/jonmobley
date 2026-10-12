@@ -689,3 +689,13 @@ audio { width: 100%; height: 36px; }
   .show li small, .show .when, .show li .mm { color: #444; }
   .show li::before { color: #000; }
 }
+
+/* Settings sections + team member read-only trick view. */
+.modal.settings { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.set-sec { display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+.set-sec h3 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.pill-on { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #14532d; color: #bbf7d0; }
+.ro { white-space: pre-wrap; padding: 2px 0 6px; }
+.ro-title { margin: 0 0 14px; font-size: 26px; font-weight: 600; }
+.ro-pics { display: flex; flex-wrap: wrap; gap: 8px; }
+.ro-pics img { width: 140px; height: 140px; object-fit: cover; border-radius: 12px; display: block; }

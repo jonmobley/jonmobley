@@ -41,16 +41,41 @@ const collections = {
 
 const SHARE_KIND = { tricks: "trick", setlists: "setlist", playlists: "playlist" } as const;
 
-async function collection(request: Request, env: Env, name: keyof typeof collections, id?: string): Promise<Response> {
+// ---------- team members (signed in with the team passcode) ----------
+// They see set lists, playlists, gear, tasks and links, and can view tricks read-only.
+// Never: methods, prices, sources, private notes, Notes, Files, chat, stats, settings.
+type Json = Record<string, unknown>;
+const TEAM_SECTIONS = new Set(["tricks", "setlists", "playlists", "equipment", "tasks", "links", "shares", "media"]);
+const TEAM_READ_ONLY = new Set(["tricks"]);
+
+const forTeam = (name: string, item: unknown): unknown => {
+  if (Array.isArray(item)) return item.map((x) => forTeam(name, x));
+  if (!item || typeof item !== "object") return item;
+  const x = item as Json;
+  if (name === "tricks") return { ...x, method: "", cost: null, source: "", purchase_url: "", notes: "", links: [] };
+  if (name === "equipment") return { ...x, cost: null, purchase_url: "" };
+  return x;
+};
+/** Drops fields a team member may not change (they keep their saved values). */
+const fromTeam = (name: string, b: Json): Json => {
+  if (name !== "equipment") return b;
+  const { cost: _c, purchase_url: _p, ...rest } = b;
+  return rest;
+};
+
+async function collection(request: Request, env: Env, name: keyof typeof collections, id?: string, team = false): Promise<Response> {
   const c = collections[name];
   const m = request.method;
-  if (!id && m === "GET") return json(await c.list(env));
-  if (!id && m === "POST") return json(await c.save(env, await body(request)), 201);
+  const out = (item: unknown, status = 200) => json(team ? forTeam(name, item) : item, status);
+  const input = async () => (team ? fromTeam(name, await body(request)) : await body(request));
+  if (team && m !== "GET" && TEAM_READ_ONLY.has(name)) return fail("Team members can view these but not change them.", 403);
+  if (!id && m === "GET") return out(await c.list(env));
+  if (!id && m === "POST") return out(await c.save(env, await input()), 201);
   if (id && m === "GET") {
     const item = await c.get(env, id);
-    return item ? json(item) : fail("Not found.", 404);
+    return item ? out(item) : fail("Not found.", 404);
   }
-  if (id && m === "PUT") return json(await c.save(env, await body(request), id));
+  if (id && m === "PUT") return out(await c.save(env, await input(), id));
   if (id && m === "DELETE") {
     if (!(await c.remove(env, id))) return fail("Not found.", 404);
     if (name in SHARE_KIND) await shares.deleteShare(env, SHARE_KIND[name as keyof typeof SHARE_KIND], id);
@@ -92,7 +117,11 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
 
   try {
     if (section === "session" && method === "GET") {
-      return json({ signedIn: await auth.isSignedIn(request, env), passwordSet: await auth.hasPassword(env) });
+      const role = await auth.currentRole(request, env);
+      return json({
+        signedIn: !!role, role, passwordSet: await auth.hasPassword(env),
+        teamPasscodeSet: role === "owner" ? await auth.hasTeamPasscode(env) : undefined,
+      });
     }
 
     // AI agents booking Jon: public, passed through to Nexus. See /agents/.
@@ -118,13 +147,16 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
       const { password } = await body(request);
       const result = await auth.login(request, env, typeof password === "string" ? password : "");
       if ("error" in result) return fail(result.error, result.status);
-      return json({ ok: true }, 200, { "Set-Cookie": cookieFor(request, result.cookie) });
+      return json({ ok: true, role: result.role }, 200, { "Set-Cookie": cookieFor(request, result.cookie) });
     }
     if (section === "logout" && method === "POST") {
       return json({ ok: true }, 200, { "Set-Cookie": cookieFor(request, auth.clearCookie()) });
     }
 
-    if (!(await auth.isSignedIn(request, env))) return fail("Please sign in.", 401);
+    const role = await auth.currentRole(request, env);
+    if (!role) return fail("Please sign in.", 401);
+    const team = role === "team";
+    if (team && !TEAM_SECTIONS.has(section)) return fail("That part of Backstage is for Jon only.", 403);
 
     switch (section) {
       case "password": {
@@ -133,6 +165,14 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
         const result = await auth.changePassword(env, String(b.current ?? ""), String(b.next ?? ""));
         if ("error" in result) return fail(result.error);
         return json({ ok: true }, 200, { "Set-Cookie": cookieFor(request, result.cookie) });
+      }
+      case "team-passcode": {
+        // PUT {passcode} sets or changes it; DELETE turns team access off. Both sign out team devices.
+        if (method !== "PUT" && method !== "DELETE") break;
+        const passcode = method === "DELETE" ? null : String((await body(request)).passcode ?? "");
+        const result = await auth.setTeamPasscode(env, passcode);
+        if ("error" in result) return fail(result.error);
+        return json({ ok: true, teamPasscodeSet: passcode !== null });
       }
       case "agent-settings": {
         if (method !== "GET" && method !== "PUT") break;
@@ -166,7 +206,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
           waitUntil(refreshLinkImage(env, id));
           return json({ ok: true });
         }
-        const res = await collection(request, env, "links", id);
+        const res = await collection(request, env, "links", id, team);
         if (res.ok) {
           const pending = (await data.listLinks(env)).filter((l) => l.image_kind === "").slice(0, 3);
           for (const l of pending) waitUntil(refreshLinkImage(env, l.id));
@@ -180,7 +220,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
       case "notes":
       case "equipment":
       case "files":
-        return await collection(request, env, section, id);
+        return await collection(request, env, section, id, team);
       case "media": {
         if (method === "POST" && !id) {
           const form = await request.formData();
