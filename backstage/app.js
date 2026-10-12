@@ -199,6 +199,12 @@ const go = (path) => {
   location.hash = `#/${path}`;
 };
 
+// Signed in with the team passcode (an assistant): a limited view. The server enforces the
+// same limits; this just hides what they can't use.
+let TEAM = false;
+const TEAM_HIDDEN = ["notes", "files", "stats", "booking"];
+const visibleSections = () => (TEAM ? SECTIONS.filter(([k]) => !TEAM_HIDDEN.includes(k)) : SECTIONS);
+
 function App() {
   const [session, setSession] = useState(null);
   useEffect(() => {
@@ -210,11 +216,12 @@ function App() {
   const [wasIn, setWasIn] = useState(false);
   useEffect(() => { if (session?.signedIn) setWasIn(true); }, [session]);
   if (!session) return null;
-  const login = html`<${Login} session=${session} onIn=${() => setSession({ ...session, signedIn: true })} />`;
+  TEAM = session.role === "team";
+  const login = html`<${Login} session=${session} onIn=${() => api("session").then(setSession).catch(() => setSession({ ...session, signedIn: true }))} />`;
   if (!wasIn && !session.signedIn) return login;
   // Signed out mid-session (expired, or password changed elsewhere): sign in on top, keeping unsaved work.
   return html`
-    <${Backstage} onOut=${() => { unsaved = false; setWasIn(false); setSession({ ...session, signedIn: false }); }} />
+    <${Backstage} key=${session.role || "out"} session=${session} onSession=${setSession} onOut=${() => { unsaved = false; setWasIn(false); setSession({ ...session, signedIn: false }); }} />
     ${!session.signedIn && html`<div class="modal-wrap">${login}</div>`}`;
 }
 
@@ -239,8 +246,8 @@ function Login({ session, onIn }) {
     <form class="login" onSubmit=${submit}>
       <div class="badge">JM</div>
       <h1>Backstage</h1>
-      <p>${session.passwordSet ? "Sign in to your trick library." : "Backstage isn't set up yet."}</p>
-      <label class="field"><span>PASSWORD</span>
+      <p>${session.passwordSet ? "Sign in with your password, or the team passcode if you're on Jon's team." : "Backstage isn't set up yet."}</p>
+      <label class="field"><span>PASSWORD OR PASSCODE</span>
         <input class="input" type="password" autocomplete="current-password" autofocus value=${pw} onInput=${(e) => setPw(e.target.value)} />
       </label>
       <button class="btn primary" disabled=${busy || !pw}>${busy ? "Signing in…" : "Sign in"}</button>
@@ -279,7 +286,7 @@ function useMedia(query) {
   return on;
 }
 
-function Backstage({ onOut }) {
+function Backstage({ session, onSession, onOut }) {
   const route = useHashRoute();
   const [tricks, setTricks] = useState(null);
   const [setlists, setSetlists] = useState(null);
@@ -302,8 +309,9 @@ function Backstage({ onOut }) {
   }, [topMore]);
   const [pane, setPane] = useState(() => (matchMedia("(max-width: 900px)").matches ? "lib" : "both"));
   // Desktop: the chat panel slides in and out; remembered per device.
-  const [chatOpen, setChatOpen] = useState(() => store.get("chat-open") !== "0");
-  useEffect(() => { store.set("chat-open", chatOpen ? "1" : "0"); }, [chatOpen]);
+  const [chatOpenPref, setChatOpen] = useState(() => store.get("chat-open") !== "0");
+  const chatOpen = chatOpenPref && !TEAM;
+  useEffect(() => { store.set("chat-open", chatOpenPref ? "1" : "0"); }, [chatOpenPref]);
   const [settings, setSettings] = useState(false);
   const [toast, setToast] = useState("");
   const [show, setShow] = useState(null);
@@ -317,8 +325,8 @@ function Backstage({ onOut }) {
     if (want("playlists")) jobs.push(api("playlists").then(setPlaylists));
     if (want("equipment")) jobs.push(api("equipment").then(setEquipment));
     if (want("tasks")) jobs.push(api("tasks").then(setTasks));
-    if (want("notes")) jobs.push(api("notes").then(setNotes));
-    if (want("files")) jobs.push(api("files").then(setFiles));
+    if (want("notes") && !TEAM) jobs.push(api("notes").then(setNotes));
+    if (want("files") && !TEAM) jobs.push(api("files").then(setFiles));
     if (want("links")) jobs.push(api("links").then(setLinks));
     await Promise.all(jobs).catch((e) => setToast(e.message));
   }, []);
@@ -330,7 +338,7 @@ function Backstage({ onOut }) {
   }, [toast]);
 
   // While a section is empty it shows samples; `real` is what's actually saved.
-  const sample = (list, demo) => (list && list.length === 0 ? demo : list);
+  const sample = (list, demo) => (list && list.length === 0 && !TEAM ? demo : list);
   const ctx = {
     tricks: sample(tricks, DEMO_TRICKS),
     setlists: sample(setlists, DEMO_SETLISTS),
@@ -343,8 +351,9 @@ function Backstage({ onOut }) {
     real: { tricks, setlists, playlists, equipment, tasks, notes, files, links },
     setTasks, load, setToast, setShow,
   };
-  const [section, id] = route;
-  const tab = SECTIONS.some(([k]) => k === section) ? section : "home";
+  const [routeSection, id] = route;
+  const section = TEAM && TEAM_HIDDEN.includes(routeSection) ? "home" : routeSection;
+  const tab = visibleSections().some(([k]) => k === section) ? section : "home";
 
   let view;
   if (section === "sets" && id) view = html`<${SetlistEditor} key=${id} id=${id} ctx=${ctx} />`;
@@ -360,7 +369,7 @@ function Backstage({ onOut }) {
   else if (section === "links") view = html`<${LinksPage} ctx=${ctx} />`;
   else if (section === "stats") view = html`<${StatsPage} ctx=${ctx} />`;
   else if (section === "booking") view = html`<${AgentBookingPage} ctx=${ctx} />`;
-  else if (section === "tricks" && id) view = html`<${TrickEditor} key=${id} id=${id} ctx=${ctx} />`;
+  else if (section === "tricks" && id) view = TEAM ? html`<${TrickView} key=${id} id=${id} ctx=${ctx} />` : html`<${TrickEditor} key=${id} id=${id} ctx=${ctx} />`;
   else if (section === "tricks") view = html`<${TrickList} ctx=${ctx} />`;
   else view = html`<${HomePage} ctx=${ctx} />`;
 
@@ -375,12 +384,12 @@ function Backstage({ onOut }) {
       <header class="top">
         <div class="brand">
           <div class="badge">JM</div><span class="word">Backstage</span>
-          <button class="icon-btn sidebar-toggle" onClick=${() => setChatOpen(!chatOpen)} aria-pressed=${chatOpen}
-            aria-label=${chatOpen ? "Hide chat" : "Show chat"} title=${chatOpen ? "Hide chat" : "Show chat"}><${Icon} name="sidebar" /></button>
+          ${!TEAM && html`<button class="icon-btn sidebar-toggle" onClick=${() => setChatOpen(!chatOpen)} aria-pressed=${chatOpen}
+            aria-label=${chatOpen ? "Hide chat" : "Show chat"} title=${chatOpen ? "Hide chat" : "Show chat"}><${Icon} name="sidebar" /></button>`}
         </div>
         <div class="tabs-wrap">
           <nav class="tabs">
-            ${SECTIONS.filter(([k]) => mainTabs.includes(k)).map(([k, label]) => html`<button class=${`tab ${tab === k && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab(k)}>
+            ${visibleSections().filter(([k]) => mainTabs.includes(k)).map(([k, label]) => html`<button class=${`tab ${tab === k && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab(k)}>
               ${label}${k === "tasks" && openTasks > 0 ? html`<span class="count-badge">${openTasks}</span>` : null}
             </button>`)}
           </nav>
@@ -389,7 +398,7 @@ function Backstage({ onOut }) {
               ${mainTabs.includes(tab) ? "More" : SECTIONS.find(([k]) => k === tab)[1]}<${Icon} name="arrowDown" size=${14} />
             </button>
             ${topMore && html`<div class="menu tab-menu" role="menu">
-              ${SECTIONS.filter(([k]) => !mainTabs.includes(k)).map(([k, label, , icon]) => html`<button role="menuitem" class=${`opt ${tab === k ? "on" : ""}`} onClick=${() => { setTopMore(false); setTab(k); }}>
+              ${visibleSections().filter(([k]) => !mainTabs.includes(k)).map(([k, label, , icon]) => html`<button role="menuitem" class=${`opt ${tab === k ? "on" : ""}`} onClick=${() => { setTopMore(false); setTab(k); }}>
                 <${Icon} name=${icon} size=${16} />${label}
               </button>`)}
             </div>`}
@@ -397,16 +406,16 @@ function Backstage({ onOut }) {
         </div>
         <span class="phone-title">${pane === "chat" ? "Chat" : SECTIONS.find(([k]) => k === tab)[1]}</span>
         <div class="spacer"></div>
-        <button class=${`ghost chat-toggle ${pane === "chat" ? "on" : ""}`} onClick=${() => setPane(pane === "chat" ? "lib" : "chat")} aria-label="Chat"><${Icon} name="chat" /><span>Chat</span></button>
+        ${!TEAM && html`<button class=${`ghost chat-toggle ${pane === "chat" ? "on" : ""}`} onClick=${() => setPane(pane === "chat" ? "lib" : "chat")} aria-label="Chat"><${Icon} name="chat" /><span>Chat</span></button>`}
         <a class="ghost view-site" href="/" target="_blank" rel="noopener"><${Icon} name="external" /><span class="word">View site</span></a>
         <button class="ghost" onClick=${() => setSettings(true)} aria-label="Settings"><${Icon} name="settings" /><span class="word">Settings</span></button>
       </header>
       <main class=${`split ${pane === "chat" ? "show-chat" : pane === "lib" ? "show-lib" : ""}`}>
-        <${Chat} ctx=${ctx} />
+        ${!TEAM && html`<${Chat} ctx=${ctx} />`}
         <section class="stage">${view}</section>
       </main>
       <nav class="bottombar">
-        ${SECTIONS.filter(([k]) => PHONE_MAIN.includes(k)).map(([k, , short, icon]) => html`<button class=${tab === k && pane !== "chat" ? "on" : ""} onClick=${() => setTab(k)}>
+        ${visibleSections().filter(([k]) => PHONE_MAIN.includes(k)).map(([k, , short, icon]) => html`<button class=${tab === k && pane !== "chat" ? "on" : ""} onClick=${() => setTab(k)}>
           <span class="bb-icon"><${Icon} name=${icon} />${k === "tasks" && openTasks > 0 ? html`<i class="bb-badge">${openTasks}</i>` : null}</span>
           <span>${short}</span>
         </button>`)}
@@ -418,13 +427,13 @@ function Backstage({ onOut }) {
     </div>
     ${more && html`<div class="sheet-wrap" onClick=${(e) => e.target === e.currentTarget && setMore(false)}>
       <div class="sheet" role="menu">
-        ${SECTIONS.filter(([k]) => !PHONE_MAIN.includes(k)).map(([k, label, , icon]) => html`<button role="menuitem" class=${tab === k ? "on" : ""} onClick=${() => setTab(k)}>
+        ${visibleSections().filter(([k]) => !PHONE_MAIN.includes(k)).map(([k, label, , icon]) => html`<button role="menuitem" class=${tab === k ? "on" : ""} onClick=${() => setTab(k)}>
           <span class="sheet-ico"><${Icon} name=${icon} /></span>${label}
         </button>`)}
       </div>
     </div>`}
     ${show && html`<${ShowMode} ...${show} onClose=${() => setShow(null)} />`}
-    ${settings && html`<${Settings} onClose=${() => setSettings(false)} onOut=${onOut} />`}
+    ${settings && html`<${Settings} session=${session} onSession=${onSession} onClose=${() => setSettings(false)} onOut=${onOut} />`}
     ${toast && html`<div class="toast" role="status">${toast}</div>`}
   `;
 }
@@ -495,7 +504,7 @@ function TrickList({ ctx }) {
         ${STATUSES.map(([k, label]) => html`<button class=${`chip ${status === k ? "on" : ""}`} onClick=${() => setStatus(status === k ? "" : k)}>${label}</button>`)}
       </div>
       <div class="grow"></div>
-      <button class="btn primary" onClick=${() => go("tricks/new")}><${Icon} name="plus" />New trick</button>
+      ${!TEAM && html`<button class="btn primary" onClick=${() => go("tricks/new")}><${Icon} name="plus" />New trick</button>`}
     </div>
     <div class="filters">
       <select class=${`select mini ${category ? "set" : ""}`} value=${category} onChange=${(e) => setCategory(e.target.value)} aria-label="Category">
@@ -519,7 +528,7 @@ function TrickList({ ctx }) {
       ${!tricks
         ? null
         : tricks.length === 0
-          ? html`<div class="empty"><h2>Your trick library is empty</h2><p>Add your first trick, or send the chat a photo of a prop and it'll fill in the details.</p><button class="btn primary" onClick=${() => go("tricks/new")}><${Icon} name="plus" />New trick</button></div>`
+          ? html`<div class="empty"><h2>Your trick library is empty</h2><p>${TEAM ? "Jon hasn't added any tricks yet." : "Add your first trick, or send the chat a photo of a prop and it'll fill in the details."}</p>${!TEAM && html`<button class="btn primary" onClick=${() => go("tricks/new")}><${Icon} name="plus" />New trick</button>`}</div>`
           : shown.length === 0
             ? html`<div class="empty"><h2>No matches</h2><p>Nothing fits those filters.</p><button class="btn" onClick=${clear}>Clear filters</button></div>`
             : view === "list"
@@ -822,6 +831,36 @@ const TRICK_TABS = [
   ["buying", "Buying", (t) => t.cost != null || t.source || t.purchase_url],
 ];
 
+// Team members see a trick read-only, without the private fields (the server leaves them out too).
+function TrickView({ id, ctx }) {
+  const t = (ctx.tricks || []).find((x) => x.id === id);
+  if (!t) return html`<${BackBar} to="tricks" label="Tricks" />${ctx.tricks && html`<div class="empty"><h2>Trick not found</h2><p>It may have been deleted.</p></div>`}`;
+  const usedIn = (ctx.setlists || []).filter((s) => s.items.some((i) => i.trick_id === id));
+  const row = (label, value) => value ? html`<div class="field"><span>${label}</span><div class="ro">${value}</div></div>` : null;
+  return html`
+    <${BackBar} to="tricks" label="Tricks"><${ShareButton} kind="trick" item=${t} isNew=${false} ctx=${ctx} /><//>
+    <div class="scroll pad">
+      <div class="editor">
+        <h1 class="ro-title">${t.name}</h1>
+        <div class="cols">
+          ${row("STATUS", statusLabel(t.status))}
+          ${row("CATEGORY", t.category)}
+          ${row("LENGTH", t.duration_min ? fmtMin(t.duration_min) : "")}
+          ${row("WHERE IT LIVES", t.location)}
+        </div>
+        ${t.images.some(isImageKey) && html`<div class="section ro-pics">${t.images.filter(isImageKey).map((k) => html`<a href=${mediaUrl(k)} target="_blank" rel="noopener"><img src=${mediaUrl(k)} alt="" loading="lazy" /></a>`)}</div>`}
+        ${row("EFFECT — WHAT THEY SEE", t.effect)}
+        ${row("PROPS TO PACK", t.props)}
+        ${row("PREP & RESET", t.reset)}
+        ${row("GOOD FOR", t.audiences.join(", "))}
+        ${row("TAGS", t.tags.join(", "))}
+        ${usedIn.length > 0 && html`<div class="section"><h3>In set lists</h3>
+          <div class="chips">${usedIn.map((s) => html`<button class="chip" onClick=${() => go(`sets/${s.id}`)}>${s.name}</button>`)}</div>
+        </div>`}
+      </div>
+    </div>`;
+}
+
 function TrickEditor({ id, ctx }) {
   const { draft, set, dirty, setDirty, isNew, missing } = useDraft(id, ctx.tricks, BLANK_TRICK);
   const [tab, setTabState] = useState(() => (TRICK_TABS.some(([k]) => k === store.get("trick-tab")) ? store.get("trick-tab") : "overview"));
@@ -1109,7 +1148,7 @@ function SetlistEditor({ id, ctx }) {
           ${(ctx.tasks || []).filter((t) => t.setlist_id === id).map((t) => html`<${TaskRow} key=${t.id} task=${t} ctx=${ctx} showSet=${false} />`)}
           ${!draft.demo && html`<${TaskAdd} ctx=${ctx} setlistId=${id} placeholder="Add a task for this show…" />`}
         </div>`}
-        ${!isNew && html`<div class="section">
+        ${!isNew && !TEAM && html`<div class="section">
           <h3>Files for this show</h3>
           <div class="flist">${(ctx.files || []).filter((f) => f.setlist_id === id).map((f) => html`<${FileRow} key=${f.id} file=${f} ctx=${ctx} showSet=${false} />`)}</div>
           ${!draft.demo && html`<div><${FileUploadButton} ctx=${ctx} extra=${{ setlist_id: id }} label="Upload insurance, contract…" primary=${false} /></div>`}
@@ -1373,7 +1412,7 @@ function GearEditor({ id, ctx }) {
         </div>
         <${Field} label="TAGS"><${TagInput} value=${draft.tags} suggestions=${allTags} placeholder="charge before show, fragile…" onChange=${(tags) => set({ tags })} /><//>
         <${Field} label="NOTES"><${Area} value=${draft.notes} onInput=${(v) => set({ notes: v })} /><//>
-        <div class="section">
+        ${!TEAM && html`<div class="section">
           <h3>Buying</h3>
           <div class="cols">
             <${Field} label="PRICE ($)"><${Text} type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value=${draft.cost ?? ""} onInput=${(v) => set({ cost: v === "" ? null : Number(v) })} /><//>
@@ -1385,7 +1424,7 @@ function GearEditor({ id, ctx }) {
               ${draft.purchase_url && html`<a class="btn" href=${/^https?:/.test(draft.purchase_url) ? draft.purchase_url : `https://${draft.purchase_url}`} target="_blank" rel="noopener"><${Icon} name="external" />${draft.status === "wishlist" ? "Buy" : "Open"}</a>`}
             </div>
           <//>
-        </div>
+        </div>`}
         ${usedIn.length > 0 && html`<div class="section"><h3>Packed for</h3>
           <div class="chips">${usedIn.map((s) => html`<button class="chip" onClick=${() => go(`sets/${s.id}`)}>${s.name}</button>`)}</div>
         </div>`}
@@ -2177,7 +2216,7 @@ function daysUntil(date) {
 
 function HomePage({ ctx }) {
   const [week, setWeek] = useState(null);
-  useEffect(() => { api("stats?days=7").then(setWeek).catch(() => setWeek(false)); }, []);
+  useEffect(() => { if (!TEAM) api("stats?days=7").then(setWeek).catch(() => setWeek(false)); }, []);
   const r = ctx.real;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -2212,14 +2251,14 @@ function HomePage({ ctx }) {
       <div class="home">
         <header class="home-head">
           <div>
-            <h1>${greeting}, Jon</h1>
+            <h1>${greeting}${TEAM ? "" : ", Jon"}</h1>
             <p class="muted-sm">${new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
           </div>
           <div class="quick">
-            <button class="btn" onClick=${() => go("tricks/new")}><${Icon} name="plus" />Trick</button>
+            ${!TEAM && html`<button class="btn" onClick=${() => go("tricks/new")}><${Icon} name="plus" />Trick</button>`}
             <button class="btn" onClick=${() => go("sets/new")}><${Icon} name="plus" />Set list</button>
             <button class="btn" onClick=${() => go("tasks")}><${Icon} name="plus" />Task</button>
-            <button class="btn" onClick=${() => go("files")}><${Icon} name="upload" />File</button>
+            ${!TEAM && html`<button class="btn" onClick=${() => go("files")}><${Icon} name="upload" />File</button>`}
           </div>
         </header>
 
@@ -2251,7 +2290,7 @@ function HomePage({ ctx }) {
               : html`<div class="task-group">${taskList.map((x) => html`<${TaskRow} key=${x.id} task=${x} ctx=${ctx} />`)}</div>`}
           </section>
 
-          <section class="card-sec">
+          ${!TEAM && html`<section class="card-sec">
             <div class="sec-top"><h3>This week on your site</h3><button class="link-btn" onClick=${() => go("stats")}>Stats</button></div>
             ${week === null ? html`<p class="muted-sm">Loading…</p>` : week === false ? html`<p class="muted-sm">Stats aren't available right now.</p>` : html`
               <div class="mini-tiles">
@@ -2260,7 +2299,7 @@ function HomePage({ ctx }) {
                 <div><b>${nf(week.totals.aiLive)}</b><span>AI looked you up</span></div>
               </div>
               ${week.trackingSince ? html`<${DayBars} data=${week.series} series=${PEOPLE} label="Visitors per day this week" />` : html`<p class="muted-sm">Counting started — numbers will appear as people visit.</p>`}`}
-          </section>
+          </section>`}
 
           <section class="card-sec">
             <h3>Recently added</h3>
@@ -2535,18 +2574,21 @@ function AgentBookingPage({ ctx }) {
 
 // ---------- settings ----------
 
-function Settings({ onClose, onOut }) {
+function Settings({ session, onSession, onClose, onOut }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState("");
+  const [teamMsg, setTeamMsg] = useState(null);
+  const teamOn = !!session?.teamPasscodeSet;
   const change = async (e) => {
     e.preventDefault();
     setBusy(true);
     setMsg(null);
     try {
       await api("password", { method: "POST", body: { current, next } });
-      setMsg({ ok: true, text: "Password changed. Other devices are signed out." });
+      setMsg({ ok: true, text: "Password changed. Other devices (and team members) are signed out." });
       setCurrent("");
       setNext("");
     } catch (e2) {
@@ -2554,24 +2596,63 @@ function Settings({ onClose, onOut }) {
     }
     setBusy(false);
   };
+  const setTeam = async (passcode) => {
+    setBusy(true);
+    setTeamMsg(null);
+    try {
+      const r = await api("team-passcode", passcode === null ? { method: "DELETE" } : { method: "PUT", body: { passcode } });
+      onSession({ ...session, teamPasscodeSet: r.teamPasscodeSet });
+      setTeamMsg({ ok: true, text: passcode === null ? "Team access is off. Team members are signed out." : teamOn ? "Passcode changed. Team members need the new one." : "Team access is on. Share the passcode with your team." });
+      setCode("");
+    } catch (e2) {
+      setTeamMsg({ ok: false, text: e2.message });
+    }
+    setBusy(false);
+  };
   const signOut = async () => {
     await api("logout", { method: "POST" }).catch(() => {});
     onOut();
   };
+  const close = html`<button type="button" class="btn" onClick=${onClose}>Close</button>`;
+  if (TEAM) {
+    return html`<div class="modal-wrap" onClick=${(e) => e.target === e.currentTarget && onClose()}>
+      <div class="modal">
+        <h2>Settings</h2>
+        <p class="muted-sm">You're signed in with the team passcode. You can see set lists, music, gear, tasks and links, and view tricks.</p>
+        <div class="acts"><button type="button" class="btn" onClick=${signOut}>Sign out</button><div style="flex:1"></div>${close}</div>
+      </div>
+    </div>`;
+  }
   return html`<div class="modal-wrap" onClick=${(e) => e.target === e.currentTarget && onClose()}>
-    <form class="modal" onSubmit=${change}>
+    <div class="modal settings">
       <h2>Settings</h2>
-      <${Field} label="CURRENT PASSWORD"><input class="input" type="password" autocomplete="current-password" value=${current} onInput=${(e) => setCurrent(e.target.value)} /><//>
-      <${Field} label="NEW PASSWORD (10+ CHARACTERS)"><input class="input" type="password" autocomplete="new-password" value=${next} onInput=${(e) => setNext(e.target.value)} /><//>
-      ${msg && html`<div class=${msg.ok ? "msg-ok" : "msg-err"}>${msg.text}</div>`}
+      <form class="set-sec" onSubmit=${change}>
+        <h3>Your password</h3>
+        <${Field} label="CURRENT PASSWORD"><input class="input" type="password" autocomplete="current-password" value=${current} onInput=${(e) => setCurrent(e.target.value)} /><//>
+        <${Field} label="NEW PASSWORD (10+ CHARACTERS)"><input class="input" type="password" autocomplete="new-password" value=${next} onInput=${(e) => setNext(e.target.value)} /><//>
+        ${msg && html`<div class=${msg.ok ? "msg-ok" : "msg-err"}>${msg.text}</div>`}
+        <div class="acts"><button class="btn primary" disabled=${busy || !current || next.length < 10}>Change password</button></div>
+      </form>
+      <form class="set-sec" onSubmit=${(e) => { e.preventDefault(); setTeam(code); }}>
+        <h3>Team access ${teamOn ? html`<span class="pill-on">On</span>` : html`<span class="muted-sm">Off</span>`}</h3>
+        <p class="muted-sm">A shared passcode for an assistant or crew. They sign in with it on the same page and can see set lists, music, gear, tasks and links, and view tricks. They never see methods, prices, notes, files or the chat.</p>
+        <${Field} label=${teamOn ? "NEW PASSCODE (6+ CHARACTERS)" : "PASSCODE (6+ CHARACTERS)"}>
+          <input class="input" autocomplete="off" autocapitalize="off" spellcheck="false" value=${code} onInput=${(e) => setCode(e.target.value)} />
+        <//>
+        ${teamMsg && html`<div class=${teamMsg.ok ? "msg-ok" : "msg-err"}>${teamMsg.text}</div>`}
+        <div class="acts">
+          ${teamOn && html`<button type="button" class="btn danger" disabled=${busy} onClick=${() => setTeam(null)}>Turn off</button>`}
+          <div style="flex:1"></div>
+          <button class="btn primary" disabled=${busy || code.length < 6}>${teamOn ? "Change passcode" : "Turn on"}</button>
+        </div>
+      </form>
       <div class="acts">
         <button type="button" class="btn" onClick=${signOut}>Sign out</button>
         <a class="btn" href="/" target="_blank" rel="noopener">View site</a>
         <div style="flex:1"></div>
-        <button type="button" class="btn" onClick=${onClose}>Close</button>
-        <button class="btn primary" disabled=${busy || !current || next.length < 10}>Change password</button>
+        ${close}
       </div>
-    </form>
+    </div>
   </div>`;
 }
 

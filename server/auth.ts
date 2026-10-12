@@ -1,4 +1,5 @@
-// Sign-in for /backstage: one owner, one password.
+// Sign-in for /backstage: Jon's password, or an optional team passcode for an assistant
+// (see "Team" below: team members get a limited view, enforced in functions/api).
 // The password is stored as a PBKDF2 hash in the settings table; a signed,
 // HttpOnly cookie keeps the session for 30 days.
 import type { Env } from "./env";
@@ -83,13 +84,35 @@ function readCookie(request: Request, name: string): string | null {
   return null;
 }
 
-export async function isSignedIn(request: Request, env: Env): Promise<boolean> {
+export type Role = "owner" | "team";
+
+/** Who is signed in: the owner, a team member, or nobody. */
+export async function currentRole(request: Request, env: Env): Promise<Role | null> {
   const value = readCookie(request, COOKIE);
-  if (!value) return false;
-  const [exp, sig] = value.split(".");
-  if (!exp || !sig || Number(exp) < Date.now()) return false;
-  const expected = await sign(env, `session.${exp}`);
-  return sameBytes(enc.encode(sig), enc.encode(expected));
+  if (!value) return null;
+  const parts = value.split(".");
+  if (parts.length === 2) {
+    const [exp, sig] = parts;
+    if (!exp || !sig || Number(exp) < Date.now()) return null;
+    return sameBytes(enc.encode(sig), enc.encode(await sign(env, `session.${exp}`))) ? "owner" : null;
+  }
+  if (parts.length === 3 && parts[0] === "t") {
+    const [, exp, sig] = parts;
+    const teamSecret = await getSetting(env, "team_secret");
+    if (!teamSecret || !exp || !sig || Number(exp) < Date.now()) return null;
+    return sameBytes(enc.encode(sig), enc.encode(await sign(env, `team.${exp}.${teamSecret}`))) ? "team" : null;
+  }
+  return null;
+}
+
+export async function isSignedIn(request: Request, env: Env): Promise<boolean> {
+  return (await currentRole(request, env)) !== null;
+}
+
+async function teamCookie(env: Env): Promise<string> {
+  const exp = Date.now() + SESSION_DAYS * 86400_000;
+  const sig = await sign(env, `team.${exp}.${await getSetting(env, "team_secret")}`);
+  return `${COOKIE}=t.${exp}.${sig}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_DAYS * 86400}`;
 }
 
 async function sessionCookie(env: Env): Promise<string> {
@@ -106,8 +129,8 @@ export async function hasPassword(env: Env): Promise<boolean> {
   return (await getSetting(env, "password_hash")) !== null;
 }
 
-/** Returns a Set-Cookie header on success, or an error message. */
-export async function login(request: Request, env: Env, password: string): Promise<{ cookie: string } | { error: string; status: number }> {
+/** Accepts Jon's password or the team passcode. Returns a Set-Cookie header and role, or an error message. */
+export async function login(request: Request, env: Env, password: string): Promise<{ cookie: string; role: Role } | { error: string; status: number }> {
   const ip = request.headers.get("CF-Connecting-IP") || "local";
   const since = Date.now() - WINDOW_MS;
   await env.DB.prepare("DELETE FROM login_attempts WHERE at < ?").bind(since).run();
@@ -118,11 +141,16 @@ export async function login(request: Request, env: Env, password: string): Promi
     return { error: "Too many tries. Wait 15 minutes and try again.", status: 429 };
   }
   const stored = await getSetting(env, "password_hash");
-  if (!stored || !(await verifyPassword(password, stored))) {
-    return { error: "That password didn't work.", status: 401 };
+  if (stored && (await verifyPassword(password, stored))) {
+    await env.DB.prepare("DELETE FROM login_attempts WHERE ip = ?").bind(ip).run();
+    return { cookie: await sessionCookie(env), role: "owner" };
   }
-  await env.DB.prepare("DELETE FROM login_attempts WHERE ip = ?").bind(ip).run();
-  return { cookie: await sessionCookie(env) };
+  const team = await getSetting(env, "team_passcode_hash");
+  if (team && (await verifyPassword(password, team))) {
+    await env.DB.prepare("DELETE FROM login_attempts WHERE ip = ?").bind(ip).run();
+    return { cookie: await teamCookie(env), role: "team" };
+  }
+  return { error: "That password didn't work.", status: 401 };
 }
 
 /** Changes the password, signs out other devices, and returns a fresh cookie for this one. */
@@ -133,4 +161,29 @@ export async function changePassword(env: Env, current: string, next: string): P
   await setSetting(env, "password_hash", await hashPassword(next));
   await setSetting(env, "session_secret", toHex(crypto.getRandomValues(new Uint8Array(32)).buffer));
   return { cookie: await sessionCookie(env) };
+}
+
+// ---------- Team ----------
+// One shared passcode for an assistant or crew. Setting, changing or removing it signs
+// out every team device (the team_secret that signs their cookies is replaced).
+
+export const MIN_PASSCODE = 6;
+
+export async function hasTeamPasscode(env: Env): Promise<boolean> {
+  return (await getSetting(env, "team_passcode_hash")) !== null;
+}
+
+/** Sets the team passcode, or removes it (null). Owner only. */
+export async function setTeamPasscode(env: Env, passcode: string | null): Promise<{ ok: true } | { error: string }> {
+  if (passcode === null) {
+    await env.DB.prepare("DELETE FROM settings WHERE key IN ('team_passcode_hash', 'team_secret')").run();
+    return { ok: true };
+  }
+  if (passcode.length < MIN_PASSCODE) return { error: `Use at least ${MIN_PASSCODE} characters.` };
+  if (passcode.length > 100) return { error: "That passcode is too long." };
+  const owner = await getSetting(env, "password_hash");
+  if (owner && (await verifyPassword(passcode, owner))) return { error: "Use something different from your own password." };
+  await setSetting(env, "team_passcode_hash", await hashPassword(passcode));
+  await setSetting(env, "team_secret", toHex(crypto.getRandomValues(new Uint8Array(32)).buffer));
+  return { ok: true };
 }
