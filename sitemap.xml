@@ -38,4 +38,9 @@
   <url>
     <loc>https://jonmobley.com/emcee/</loc>
   </url>
+  <url>
+    <loc>https://jonmobley.com/about/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
 </urlset>
