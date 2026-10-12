@@ -9,6 +9,8 @@ Public site: plain HTML, CSS and JS, no build step. Plus **/backstage**: Jon's p
 - Run: `npm ci` once, then `npx wrangler pages dev .` (serves the site and runs `functions/`). Local data lives in `.wrangler/`; first time run `npx wrangler d1 migrations apply jonmobley-backstage --local` and `node scripts/set-password.mjs --local`.
 - Chat locally: put `ANTHROPIC_API_KEY=...` in `.dev.vars` (gitignored). `ANTHROPIC_BASE_URL` there can point at a fake Claude server for tests.
 - Publish: ALWAYS `scripts/deploy.sh` (production) or `scripts/deploy.sh <branch>` (preview). It uploads only the public site; source/config/notes are left out so encoded addresses like `/%73erver/...` can't reach them. Never `wrangler pages deploy .`.
+- After publishing new or changed public pages: add them to `sitemap.xml`, then run `node scripts/indexnow.mjs` (tells Bing / ChatGPT search). Google: Search Console (domain property, owner's account) → URL inspection → Request indexing.
+- Other Claude sessions (and Moxie Studio) may work in this folder at the same time and switch branches. Work in a git worktree (`git worktree add ../jonmobley-<task>-wt -b <branch> origin/main`, then `npm ci` there) and check the branch before committing.
 - Build: none for the pages. Wrangler bundles `functions/` (and `server/`, which they import) at deploy, so `node_modules` must be installed (`npm ci`) before `wrangler pages deploy`.
 - Typecheck: `npx tsc -p .` (functions + server).
 - Test: `studio-test run` (Playwright, Chromium + WebKit). `studio-test shots / /booking/ ...` takes screenshots.
