@@ -148,10 +148,25 @@ async function clearReminders() {
   } catch {}
 }
 
-/** Signing out removes the saved copy of the library from this device. */
+/**
+ * Signing in or out removes the saved copy of the library from this device, so a different
+ * person signing in here (e.g. a team member) never sees Jon's. The service worker does the
+ * wipe (so it can also drop saves still in progress); we wait for it, then delete directly too.
+ */
 async function forgetSavedLibrary() {
   clearReminders();
-  try { await Promise.all(["bs-data", "bs-media"].map((n) => caches.delete(n))); } catch {}
+  try {
+    const sw = navigator.serviceWorker?.controller;
+    if (sw) {
+      await new Promise((done) => {
+        const ch = new MessageChannel();
+        ch.port1.onmessage = () => done();
+        sw.postMessage({ type: "forget" }, [ch.port2]);
+        setTimeout(done, 2000);
+      });
+    }
+    await Promise.all(["bs-data", "bs-media"].map((n) => caches.delete(n)));
+  } catch {}
 }
 
 async function api(path, { method = "GET", body, raw } = {}) {
@@ -336,6 +351,7 @@ function Login({ session, onIn }) {
     setBusy(true);
     setErr("");
     try {
+      await forgetSavedLibrary(); // a new sign-in never sees an earlier person's saved copy
       await api("login", { method: "POST", body: { password: pw } });
       onIn();
     } catch (e2) {

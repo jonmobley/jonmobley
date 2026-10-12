@@ -3,12 +3,33 @@
 // - Library lists (/api/...) are fetched fresh when online; the last good copy is kept and
 //   served when offline, marked with X-Backstage-Offline so the page can say so.
 // - Photos are kept once viewed. Changes (POST/PUT/DELETE) always need the internet.
-// Signing out clears the saved library (the page deletes the data caches).
-const SHELL = "bs-shell-v1";
+// Signing in or out (or any "please sign in" answer) wipes the saved library, so nobody else
+// signing in on this device (e.g. a team member) can ever be shown Jon's copy. A save that was
+// still in progress when that happened is thrown away (see `epoch`).
+const SHELL = "bs-shell-v2";
 const DATA = "bs-data";
 const MEDIA = "bs-media";
 const SHELL_FILES = ["/backstage/", "/backstage/app.js", "/backstage/app.css", "/backstage/vendor/preact-htm.js", "/backstage/demo.js",
   "/backstage/manifest.webmanifest", "/backstage/icon-192.png", "/backstage/apple-touch-icon.png"];
+
+// Bumped on every wipe; a response fetched before a wipe is never saved after it.
+let epoch = 0;
+async function forget() {
+  epoch++;
+  await Promise.all([caches.delete(DATA), caches.delete(MEDIA)]);
+}
+function save(cacheName, request, response, at) {
+  if (at !== epoch) return;
+  caches.open(cacheName)
+    .then((c) => (at === epoch ? c.put(request, response) : undefined))
+    .then(() => (at !== epoch ? caches.delete(cacheName) : undefined))
+    .catch(() => {});
+}
+// The page asks for a wipe when signing in or out and waits for the reply.
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "forget") return;
+  event.waitUntil(forget().then(() => event.ports[0]?.postMessage("done")));
+});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES)).catch(() => {}));
@@ -29,15 +50,11 @@ const offlineCopy = async (cached) => {
 };
 
 async function networkFirst(request, cacheName, { mark = false, ignoreSearch = false } = {}) {
+  const at = epoch;
   try {
     const res = await fetch(request);
-    if (res.ok) {
-      const copy = res.clone();
-      caches.open(cacheName).then((c) => c.put(request, copy)).catch(() => {});
-    } else if (res.status === 401 && cacheName === DATA) {
-      caches.delete(DATA);
-      caches.delete(MEDIA);
-    }
+    if (res.ok) save(cacheName, request, res.clone(), at);
+    else if (res.status === 401 || res.status === 403) await forget();
     return res;
   } catch (err) {
     const cached = await caches.match(request, { cacheName, ignoreSearch });
@@ -47,14 +64,12 @@ async function networkFirst(request, cacheName, { mark = false, ignoreSearch = f
 }
 
 async function cacheFirst(request) {
+  const at = epoch;
   const cached = await caches.match(request, { cacheName: MEDIA });
   if (cached) return cached;
   const res = await fetch(request);
   const type = res.headers.get("Content-Type") || "";
-  if (res.status === 200 && type.startsWith("image/")) {
-    const copy = res.clone();
-    caches.open(MEDIA).then((c) => c.put(request, copy)).catch(() => {});
-  }
+  if (res.status === 200 && type.startsWith("image/")) save(MEDIA, request, res.clone(), at);
   return res;
 }
 
