@@ -571,6 +571,12 @@ audio { width: 100%; height: 36px; }
 .modal-wrap { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.6); display: grid; place-items: center; padding: 16px; }
 .modal-wrap .center { min-height: 0; }
 .modal-wrap .login { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
+/* Phones: sign-in sits in the top part of the screen, so the keyboard never covers the box and iPhone
+   doesn't have to slide the page up (that slide left the form stuck half off-screen). */
+@media (max-width: 900px) {
+  .center, .modal-wrap { place-items: start center; padding-top: calc(env(safe-area-inset-top) + 9vh); }
+  .center { height: 100dvh; min-height: 0; }
+}
 .modal { width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
 .modal h2 { margin: 0; font-size: 18px; font-weight: 600; }
 .modal-p { margin: 0; color: var(--muted); font-size: 14px; }

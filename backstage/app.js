@@ -366,7 +366,8 @@ function Login({ session, onIn }) {
       <h1>Backstage</h1>
       <p>${session.passwordSet ? "Sign in with your password, or the team passcode if you're on Jon's team." : "Backstage isn't set up yet."}</p>
       <label class="field"><span>PASSWORD OR PASSCODE</span>
-        <input class="input" type="password" autocomplete="current-password" autofocus value=${pw} onInput=${(e) => setPw(e.target.value)} />
+        <input class="input" type="password" autocomplete="current-password" autofocus value=${pw} onInput=${(e) => setPw(e.target.value)}
+          onBlur=${() => scrollTo(0, 0)} />
       </label>
       <button class="btn primary" disabled=${busy || !pw}>${busy ? "Signing in…" : "Sign in"}</button>
       <div class="err" role="alert">${err}</div>
