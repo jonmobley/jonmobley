@@ -36,7 +36,7 @@ Voice: short, confident and playful. Labels are in all caps ("BOOKING INFO", "GE
 - The home video uses Wistia; trick-reveal videos use Bunny (iframe.mediadelivery.net).
 - The Chicago Magic Lounge feature is a still image, not a video (the owner chose this).
 - /booking is black with a centered logo and no header contact links.
-- Every page has its own share preview image (og-*.jpg) and is listed in `sitemap.xml`.
+- Every page has its own share preview image (og-*.jpg) and is listed in `sitemap.xml` (built automatically when publishing; Bing is told right after).
 
 ## Never touch
 - `js/booking.js` message checks (only trusts nxsportal.com) and the `embedResize` name on the /booking iframe. They must match or the form won't size itself.
@@ -45,5 +45,5 @@ Voice: short, confident and playful. Labels are in all caps ("BOOKING INFO", "GE
 - Celebrity quotes and TV credits: keep them word-for-word.
 
 ## Notes
-- New pages go in their own folder with an `index.html` (e.g. `/puzzle/index.html`), plus an entry in `sitemap.xml` and an og image.
+- New pages go in their own folder with an `index.html` (e.g. `/puzzle/index.html`), plus an og image. `sitemap.xml` is rebuilt automatically on every publish.
 - Cache rules: images are cached for a year, CSS/JS for a week. If you replace an image, give it a new file name.

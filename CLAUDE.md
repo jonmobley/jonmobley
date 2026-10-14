@@ -9,7 +9,7 @@ Public site: plain HTML, CSS and JS, no build step. Plus **/backstage**: Jon's p
 - Run: `npm ci` once, then `npx wrangler pages dev .` (serves the site and runs `functions/`). Local data lives in `.wrangler/`; first time run `npx wrangler d1 migrations apply jonmobley-backstage --local` and `node scripts/set-password.mjs --local`.
 - Chat locally: put `ANTHROPIC_API_KEY=...` in `.dev.vars` (gitignored). `ANTHROPIC_BASE_URL` there can point at a fake Claude server for tests.
 - Publish: ALWAYS `scripts/deploy.sh` (production) or `scripts/deploy.sh <branch>` (preview). It uploads only the public site; source/config/notes are left out so encoded addresses like `/%73erver/...` can't reach them. Never `wrangler pages deploy .`.
-- After publishing new or changed public pages: add them to `sitemap.xml`, then run `node scripts/indexnow.mjs` (tells Bing / ChatGPT search). Google: Search Console (domain property, owner's account) → URL inspection → Request indexing.
+- Search engines: `sitemap.xml` is rebuilt on every publish by `scripts/sitemap.mjs` (every folder with an index.html, minus noindex pages and robots.txt Disallows), and a production `scripts/deploy.sh` then tells Bing / ChatGPT search via IndexNow. Nothing to do per page; keep `dce0846fe85a387e6005e0425d05f5c4.txt`. To hide a page from search, give it `<meta name="robots" content="noindex">`. Google: Search Console (domain property, owner's account) → URL inspection → Request indexing.
 - Other Claude sessions (and Moxie Studio) may work in this folder at the same time and switch branches. Work in a git worktree (`git worktree add ../jonmobley-<task>-wt -b <branch> origin/main`, then `npm ci` there) and check the branch before committing.
 - Build: none for the pages. Wrangler bundles `functions/` (and `server/`, which they import) at deploy, so `node_modules` must be installed (`npm ci`) before `wrangler pages deploy`.
 - Typecheck: `npx tsc -p .` (functions + server).
@@ -38,7 +38,7 @@ Public site: plain HTML, CSS and JS, no build step. Plus **/backstage**: Jon's p
 - Each page is a folder with an `index.html`: `booking/`, `puzzle/`, `coloring-book/`, `locked/`, `seussical/`. The home page is `index.html` at the root.
 - `css/` (`styles.css` for the site, `booking.css`, `player.css`), `js/` (`main.js`, `booking.js`), `images/` (includes the `og-*.jpg` share previews).
 - Site-wide files at the root: `_headers`, `robots.txt`, `sitemap.xml`, `404.html`.
-- New page: add its folder, a `sitemap.xml` entry and an og image.
+- New page: add its folder and an og image (the sitemap picks it up on publish).
 
 ## Don't touch
 - `js/booking.js` origin checks and the `embedResize` name on the /booking iframe (they must match nxsportal).

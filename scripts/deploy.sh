@@ -16,5 +16,10 @@ for p in functions server migrations scripts e2e node_modules test-results playw
   rm -rf "${OUT:?}/$p"
 done
 find "${OUT:?}" -maxdepth 1 -name '*.md' -delete
+node scripts/sitemap.mjs "${OUT:?}"
 npx -y wrangler@4 pages deploy "${OUT:?}" --project-name jonmobley --branch "$BRANCH" \
   --commit-hash "$(git rev-parse HEAD)" --commit-message "$(git log -1 --pretty=%s | cut -c1-100)" --commit-dirty=true
+# Production only: tell Bing / ChatGPT search about the pages (never fails the deploy).
+if [ "$BRANCH" = main ]; then
+  ~/.moxie/bin/indexnow --key=dce0846fe85a387e6005e0425d05f5c4 https://jonmobley.com || node scripts/indexnow.mjs || true
+fi

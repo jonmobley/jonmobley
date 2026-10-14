@@ -2,45 +2,46 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://jonmobley.com/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://jonmobley.com/booking/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://jonmobley.com/locked/</loc>
-    <changefreq>yearly</changefreq>
-  </url>
-  <url>
-    <loc>https://jonmobley.com/puzzle/</loc>
-    <changefreq>yearly</changefreq>
-  </url>
-  <url>
-    <loc>https://jonmobley.com/coloring-book/</loc>
-    <changefreq>yearly</changefreq>
-  </url>
-  <url>
-    <loc>https://jonmobley.com/seussical/</loc>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://jonmobley.com/agents/</loc>
-  </url>
-  <url>
-    <loc>https://jonmobley.com/corporate-events/</loc>
-  </url>
-  <url>
-    <loc>https://jonmobley.com/weddings/</loc>
-  </url>
-  <url>
-    <loc>https://jonmobley.com/emcee/</loc>
+    <lastmod>2026-10-13</lastmod>
   </url>
   <url>
     <loc>https://jonmobley.com/about/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <lastmod>2026-10-13</lastmod>
+  </url>
+  <url>
+    <loc>https://jonmobley.com/agents/</loc>
+    <lastmod>2026-10-13</lastmod>
+  </url>
+  <url>
+    <loc>https://jonmobley.com/booking/</loc>
+    <lastmod>2026-10-13</lastmod>
+  </url>
+  <url>
+    <loc>https://jonmobley.com/coloring-book/</loc>
+    <lastmod>2026-10-13</lastmod>
+  </url>
+  <url>
+    <loc>https://jonmobley.com/corporate-events/</loc>
+    <lastmod>2026-10-13</lastmod>
+  </url>
+  <url>
+    <loc>https://jonmobley.com/emcee/</loc>
+    <lastmod>2026-10-13</lastmod>
+  </url>
+  <url>
+    <loc>https://jonmobley.com/locked/</loc>
+    <lastmod>2026-10-01</lastmod>
+  </url>
+  <url>
+    <loc>https://jonmobley.com/puzzle/</loc>
+    <lastmod>2026-10-13</lastmod>
+  </url>
+  <url>
+    <loc>https://jonmobley.com/seussical/</loc>
+    <lastmod>2026-10-13</lastmod>
+  </url>
+  <url>
+    <loc>https://jonmobley.com/weddings/</loc>
+    <lastmod>2026-10-13</lastmod>
   </url>
 </urlset>
