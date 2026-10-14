@@ -1,6 +1,7 @@
 // Backstage: Jon's private trick library, set lists and playlists, with a chat assistant.
 // Plain ES module, no build step. Preact + htm are vendored in ./vendor.
 import { html, render, useState, useEffect, useRef, useMemo, useCallback } from "./vendor/preact-htm.js";
+import { SOCIAL_SECTIONS, SOCIAL_PHONE_MAIN, SOCIAL_DESKTOP_MAIN, SOCIAL_IDEAS, SocialView } from "./social.js";
 import { DEMO_TRICKS, DEMO_SETLISTS, DEMO_PLAYLISTS, DEMO_EQUIPMENT, DEMO_TASKS, DEMO_NOTES, DEMO_FILES, DEMO_LINKS, adopt } from "./demo.js";
 
 // ---------- small helpers ----------
@@ -449,8 +450,11 @@ function Backstage({ session, onSession, onOut }) {
   const offline = useOffline();
   const [toast, setToast] = useState("");
   const [show, setShow] = useState(null);
+  // Bumped when the chat changes something in Social, so the open Social page reloads.
+  const [socialTick, setSocialTick] = useState(0);
 
   const load = useCallback(async (which) => {
+    if (which?.includes("social")) setSocialTick((n) => n + 1);
     const all = !which || which.length === 0;
     const want = (k) => all || which.includes(k);
     const jobs = [];
@@ -489,14 +493,32 @@ function Backstage({ session, onSession, onOut }) {
     files: sample(files, DEMO_FILES),
     links: sample(links, DEMO_LINKS),
     real: { tricks, setlists, playlists, equipment, tasks, notes, files, links },
-    setTasks, load, setToast, setShow,
+    setTasks, load, setToast, setShow, socialTick,
+    // Sends a message to the chat (and shows it on a phone).
+    ask: (text) => {
+      if (pane === "lib") setPane("chat");
+      if (!chatOpenPref) setChatOpen(true);
+      setTimeout(() => window.dispatchEvent(new CustomEvent("chat:ask", { detail: text })), 50);
+    },
   };
   const [routeSection, id] = route;
+  // Two spaces share this shell: the library (Backstage) and Social. Team members only get Backstage.
+  const space = routeSection === "social" && !TEAM ? "social" : "backstage";
+  const sections = space === "social" ? SOCIAL_SECTIONS : visibleSections();
+  const phoneMain = space === "social" ? SOCIAL_PHONE_MAIN : PHONE_MAIN;
   const section = TEAM && TEAM_HIDDEN.includes(routeSection) ? "home" : routeSection;
-  const tab = visibleSections().some(([k]) => k === section) ? section : "home";
+  const socialTab = route[1] && SOCIAL_SECTIONS.some(([k]) => k === `social/${route[1]}`) ? `social/${route[1]}` : "social";
+  const tab = space === "social" ? socialTab : visibleSections().some(([k]) => k === section) ? section : "home";
+  const switchTo = (to) => {
+    if (to === space) return;
+    if (to === "social") store.set("last-backstage", route.join("/"));
+    else store.set("last-social", route.join("/"));
+    go(to === "social" ? store.get("last-social") || "social" : store.get("last-backstage") || "home");
+  };
 
   let view;
-  if (section === "sets" && id) view = html`<${SetlistEditor} key=${id} id=${id} ctx=${ctx} />`;
+  if (space === "social") view = html`<${SocialView} route=${route} ctx=${ctx} />`;
+  else if (section === "sets" && id) view = html`<${SetlistEditor} key=${id} id=${id} ctx=${ctx} />`;
   else if (section === "sets") view = html`<${SetlistList} ctx=${ctx} />`;
   else if (section === "playlists" && id) view = html`<${PlaylistEditor} key=${id} id=${id} ctx=${ctx} />`;
   else if (section === "playlists") view = html`<${PlaylistList} ctx=${ctx} />`;
@@ -514,48 +536,54 @@ function Backstage({ session, onSession, onOut }) {
   else view = html`<${HomePage} ctx=${ctx} />`;
 
   const setTab = (t) => { setMore(false); go(t); if (pane === "chat") setPane("lib"); };
-  const inMore = !PHONE_MAIN.includes(tab);
+  const inMore = !phoneMain.includes(tab);
   const openTasks = (tasks || []).filter((t) => !t.done).length;
   const narrow = useMedia("(max-width: 1200px)");
-  const mainTabs = narrow && chatOpen ? PHONE_MAIN : DESKTOP_MAIN;
+  const mainTabs = space === "social" ? (narrow && chatOpen ? SOCIAL_PHONE_MAIN : SOCIAL_DESKTOP_MAIN) : narrow && chatOpen ? PHONE_MAIN : DESKTOP_MAIN;
+  const label = (k) => (sections.find(([x]) => x === k) || [k, k])[1];
+  const spaceSwitch = !TEAM && html`<div class="space-switch" role="group" aria-label="Switch between Backstage and Social">
+    <button class=${space === "backstage" ? "on" : ""} aria-pressed=${space === "backstage"} onClick=${() => switchTo("backstage")}>Backstage</button>
+    <button class=${space === "social" ? "on" : ""} aria-pressed=${space === "social"} onClick=${() => switchTo("social")}>Social</button>
+  </div>`;
 
   return html`
     <div class=${`shell ${chatOpen ? "" : "chat-closed"}`}>
       <header class="top">
         <div class="brand">
-          <div class="badge">JM</div><span class="word">Backstage</span>
+          <div class="badge">JM</div>${TEAM ? html`<span class="word">Backstage</span>` : spaceSwitch}
           ${!TEAM && html`<button class="icon-btn sidebar-toggle" onClick=${() => setChatOpen(!chatOpen)} aria-pressed=${chatOpen}
             aria-label=${chatOpen ? "Hide chat" : "Show chat"} title=${chatOpen ? "Hide chat" : "Show chat"}><${Icon} name="sidebar" /></button>`}
         </div>
         <div class="tabs-wrap">
           <nav class="tabs">
-            ${visibleSections().filter(([k]) => mainTabs.includes(k)).map(([k, label]) => html`<button class=${`tab ${tab === k && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab(k)}>
+            ${sections.filter(([k]) => mainTabs.includes(k)).map(([k, label]) => html`<button class=${`tab ${tab === k && pane !== "chat" ? "on" : ""}`} onClick=${() => setTab(k)}>
               ${label}${k === "tasks" && openTasks > 0 ? html`<span class="count-badge">${openTasks}</span>` : null}
             </button>`)}
           </nav>
-          <div class="tab-more" ref=${topMoreRef}>
+          ${sections.some(([k]) => !mainTabs.includes(k)) && html`<div class="tab-more" ref=${topMoreRef}>
             <button class=${`tab ${!mainTabs.includes(tab) && pane !== "chat" ? "on" : ""}`} onClick=${() => setTopMore(!topMore)} aria-expanded=${topMore} aria-haspopup="menu">
-              ${mainTabs.includes(tab) ? "More" : SECTIONS.find(([k]) => k === tab)[1]}<${Icon} name="arrowDown" size=${14} />
+              ${mainTabs.includes(tab) ? "More" : label(tab)}<${Icon} name="arrowDown" size=${14} />
             </button>
             ${topMore && html`<div class="menu tab-menu" role="menu">
-              ${visibleSections().filter(([k]) => !mainTabs.includes(k)).map(([k, label, , icon]) => html`<button role="menuitem" class=${`opt ${tab === k ? "on" : ""}`} onClick=${() => { setTopMore(false); setTab(k); }}>
+              ${sections.filter(([k]) => !mainTabs.includes(k)).map(([k, label, , icon]) => html`<button role="menuitem" class=${`opt ${tab === k ? "on" : ""}`} onClick=${() => { setTopMore(false); setTab(k); }}>
                 <${Icon} name=${icon} size=${16} />${label}
               </button>`)}
             </div>`}
-          </div>
+          </div>`}
         </div>
-        <span class="phone-title">${pane === "chat" ? "Chat" : SECTIONS.find(([k]) => k === tab)[1]}</span>
+        <span class="phone-title">${pane === "chat" ? "Chat" : space === "social" && tab === "social" ? "Social" : label(tab)}</span>
+        ${!TEAM && html`<span class="phone-switch">${spaceSwitch}</span>`}
         <div class="spacer"></div>
         ${!TEAM && html`<button class=${`ghost chat-toggle ${pane === "chat" ? "on" : ""}`} onClick=${() => setPane(pane === "chat" ? "lib" : "chat")} aria-label="Chat"><${Icon} name="chat" /><span>Chat</span></button>`}
         <a class="ghost view-site" href="/" target="_blank" rel="noopener"><${Icon} name="external" /><span class="word">View site</span></a>
         <button class="ghost" onClick=${() => setSettings(true)} aria-label="Settings"><${Icon} name="settings" /><span class="word">Settings</span></button>
       </header>
       <main class=${`split ${pane === "chat" ? "show-chat" : pane === "lib" ? "show-lib" : ""}`}>
-        ${!TEAM && html`<${Chat} ctx=${ctx} />`}
+        ${!TEAM && html`<${Chat} key=${space} ctx=${ctx} space=${space} />`}
         <section class="stage">${view}</section>
       </main>
       <nav class="bottombar">
-        ${visibleSections().filter(([k]) => PHONE_MAIN.includes(k)).map(([k, , short, icon]) => html`<button class=${tab === k && pane !== "chat" ? "on" : ""} onClick=${() => setTab(k)}>
+        ${sections.filter(([k]) => phoneMain.includes(k)).map(([k, , short, icon]) => html`<button class=${tab === k && pane !== "chat" ? "on" : ""} onClick=${() => setTab(k)}>
           <span class="bb-icon"><${Icon} name=${icon} />${k === "tasks" && openTasks > 0 ? html`<i class="bb-badge">${openTasks}</i>` : null}</span>
           <span>${short}</span>
         </button>`)}
@@ -567,7 +595,7 @@ function Backstage({ session, onSession, onOut }) {
     </div>
     ${more && html`<div class="sheet-wrap" onClick=${(e) => e.target === e.currentTarget && setMore(false)}>
       <div class="sheet" role="menu">
-        ${visibleSections().filter(([k]) => !PHONE_MAIN.includes(k)).map(([k, label, , icon]) => html`<button role="menuitem" class=${tab === k ? "on" : ""} onClick=${() => setTab(k)}>
+        ${sections.filter(([k]) => !phoneMain.includes(k)).map(([k, label, , icon]) => html`<button role="menuitem" class=${tab === k ? "on" : ""} onClick=${() => setTab(k)}>
           <span class="sheet-ico"><${Icon} name=${icon} /></span>${label}
         </button>`)}
       </div>
@@ -2469,8 +2497,10 @@ const IDEAS = [
   "Make a walk-on playlist for my next show",
 ];
 
-function Chat({ ctx }) {
-  const [chatId, setChatId] = useState(() => store.get("chat"));
+function Chat({ ctx, space = "backstage" }) {
+  const social = space === "social";
+  const chatKey = social ? "chat-social" : "chat";
+  const [chatId, setChatId] = useState(() => store.get(chatKey));
   const [messages, setMessages] = useState([]);
   const [chats, setChats] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -2483,10 +2513,10 @@ function Chat({ ctx }) {
   const box = useRef();
   const created = useRef(null); // a chat made by send(): its messages are already on screen
 
-  const loadChats = () => api("chats").then(setChats).catch(() => {});
+  const loadChats = () => api(`chats?space=${space}`).then(setChats).catch(() => {});
   useEffect(() => { loadChats(); }, []);
   useEffect(() => {
-    store.set("chat", chatId);
+    store.set(chatKey, chatId);
     if (!chatId) { setMessages([]); return; }
     if (created.current === chatId) return;
     api(`chats/${chatId}`).then((r) => setMessages(r.messages)).catch((e) => {
@@ -2529,7 +2559,7 @@ function Chat({ ctx }) {
     let id = chatId;
     try {
       if (!id) {
-        id = (await api("chats", { method: "POST", body: {} })).id;
+        id = (await api("chats", { method: "POST", body: { space } })).id;
         created.current = id;
         setChatId(id);
       }
@@ -2572,7 +2602,16 @@ function Chat({ ctx }) {
     loadChats();
   };
 
+  // Buttons elsewhere on the page (e.g. "Ask chat" in the Social inbox) send a message here.
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  useEffect(() => {
+    const on = (e) => sendRef.current(e.detail);
+    addEventListener("chat:ask", on);
+    return () => removeEventListener("chat:ask", on);
+  }, []);
   const newChat = () => { if (!busy) { setChatId(null); setShowHistory(false); } };
+  const ideas = social ? SOCIAL_IDEAS : IDEAS;
   const current = chats.find((c) => c.id === chatId);
 
   return html`<aside class="chat"
@@ -2599,9 +2638,9 @@ function Chat({ ctx }) {
     </div>`}
     <div class="msgs" ref=${scroller} onClick=${() => setShowHistory(false)}>
       ${messages.length === 0 && html`<div class="hello">
-        <h2>What should we work on?</h2>
-        <p>Ask about your tricks, build a set, or send a photo of a prop and I'll add it to your library.</p>
-        <div class="ideas">${IDEAS.map((i) => html`<button class="idea" onClick=${() => (i.includes("photo") ? fileInput.current.click() : send(i))}>${i}</button>`)}</div>
+        <h2>${social ? "Your online presence" : "What should we work on?"}</h2>
+        <p>${social ? "Ask how your accounts are doing, have me draft posts or replies, or send a photo to post." : "Ask about your tricks, build a set, or send a photo of a prop and I'll add it to your library."}</p>
+        <div class="ideas">${ideas.map((i) => html`<button class="idea" onClick=${() => (i.includes("photo") ? fileInput.current.click() : send(i))}>${i}</button>`)}</div>
       </div>`}
       ${messages.map((m) => m.role === "user"
         ? html`<div class="msg user">
@@ -2619,7 +2658,7 @@ function Chat({ ctx }) {
         <img src=${p.preview} alt="" />
         <button class="x" aria-label="Remove photo" onClick=${() => setPics(pics.filter((x) => x !== p))}><${Icon} name="x" /></button>
       </div>`)}</div>`}
-      <textarea ref=${box} rows="1" placeholder="Ask Backstage anything…" value=${text}
+      <textarea ref=${box} rows="1" placeholder=${social ? "Ask Social anything…" : "Ask Backstage anything…"} value=${text}
         onInput=${(e) => setText(e.target.value)}
         onPaste=${(e) => { const f = [...(e.clipboardData?.files || [])]; if (f.length) { e.preventDefault(); addPics(f); } }}
         onKeyDown=${(e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !matchMedia("(pointer: coarse)").matches) { e.preventDefault(); send(); } }}></textarea>
@@ -2805,3 +2844,6 @@ function Settings({ session, onSession, onClose, onOut }) {
 }
 
 render(html`<${App} />`, document.getElementById("app"));
+
+// Shared with ./social.js (Social lives in its own file).
+export { api, Icon, upload, mediaUrl, ago, go, nf, shortDay, DayBars, Field, Area, Text, store };

@@ -6,6 +6,7 @@ import Anthropic, { toFile } from "@anthropic-ai/sdk";
 import type { Env } from "./env";
 import * as data from "./data";
 import * as shares from "./shares";
+import { SOCIAL_SYSTEM, SOCIAL_TOOLS, runSocialTool } from "./social";
 
 const MODEL = "claude-opus-5-5";
 const MAX_TOOL_ROUNDS = 12;
@@ -310,6 +311,15 @@ function summary(t: data.Trick) {
 
 const idOf = (input: Json) => (typeof input.id === "string" && input.id ? input.id : undefined);
 
+type ToolRunner = (env: Env, origin: string, name: string, input: Json) => Promise<{ result: string; step?: string; changed?: string }>;
+
+/** Each chat belongs to a space: the trick library (Backstage) or Jon's online presence (Social). Same engine, different brief and tools. */
+export const SPACES: Record<string, { system: string; tools: Anthropic.Beta.BetaTool[]; run: ToolRunner }> = {
+  backstage: { system: SYSTEM, tools: TOOLS, run: (...a) => runTool(...a) },
+  social: { system: SOCIAL_SYSTEM, tools: SOCIAL_TOOLS, run: runSocialTool },
+};
+export const spaceOf = (s: unknown) => (typeof s === "string" && s in SPACES ? s : "backstage");
+
 /** Runs one tool. Returns the result text, a human summary for the chat, and which lists changed. */
 async function runTool(env: Env, origin: string, name: string, input: Json): Promise<{ result: string; step?: string; changed?: string }> {
   switch (name) {
@@ -532,7 +542,9 @@ export function streamReply(
   text: string,
   imageKeys: string[],
   today: string,
+  space = "backstage",
 ): Response {
+  const brief = SPACES[spaceOf(space)];
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
@@ -565,7 +577,7 @@ export function streamReply(
         }
         const uploaded = await client.files.upload({ file: await toFile(await obj.arrayBuffer(), key.split("/")[1], { type }) });
         content.push({ type: "image", source: { type: "file", file_id: uploaded.id } });
-        content.push({ type: "text", text: `(That photo is saved as ${key} — use this key to attach it to a trick.)` });
+        content.push({ type: "text", text: `(That photo is saved as ${key} — use this key to attach it to a trick or a post.)` });
       }
       content.push({ type: "text", text: `${text || "(photo only)"}\n\n(Today is ${today}.)` });
       // Not counted as good until Claude accepts it, so a bad turn can't break the chat for good.
@@ -575,8 +587,8 @@ export function streamReply(
         const stream = client.beta.messages.stream({
           model: MODEL,
           max_tokens: 16000,
-          system: SYSTEM,
-          tools: TOOLS,
+          system: brief.system,
+          tools: brief.tools,
           messages: file.history,
           thinking: { type: "adaptive" },
           output_config: { effort: "medium" },
@@ -617,7 +629,7 @@ export function streamReply(
         const changed = new Set<string>();
         for (const use of toolUses) {
           try {
-            const out = await runTool(env, origin, use.name, (use.input ?? {}) as Json);
+            const out = await brief.run(env, origin, use.name, (use.input ?? {}) as Json);
             results.push({ type: "tool_result", tool_use_id: use.id, content: out.result });
             if (out.step) {
               steps.push(out.step);

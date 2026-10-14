@@ -7,6 +7,7 @@ import * as shares from "../../server/shares";
 import { agentRest, ownerSettings } from "../../server/agentBooking";
 import { refreshLinkImage } from "../../server/linkPreview";
 import * as stats from "../../server/stats";
+import * as social from "../../server/social";
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -247,20 +248,66 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
         }
         break;
       }
+      case "social": {
+        // /api/social/overview | sync | stats | accounts | inbox[/id] | posts[/id]
+        const what = id;
+        const itemId = sub;
+        if (what === "overview" && method === "GET") {
+          // Opening the page refreshes in the background when the numbers are more than 3 hours old.
+          if (await social.isStale(env)) waitUntil(social.refreshInBackground(env));
+          return json(await social.overview(env));
+        }
+        if (what === "sync" && method === "POST") return json(await social.syncAll(env));
+        if (what === "propose" && method === "POST") {
+          await social.syncAll(env);
+          return json({ added: await social.proposeActions(env) });
+        }
+        if (what === "actions" && itemId && method === "POST") {
+          const b = await body(request);
+          const res = await social.decideAction(env, itemId, String(b.decision ?? ""), b);
+          return res ? json(res) : fail("That suggestion is gone (already handled?).", 404);
+        }
+        if (what === "accounts" && method === "GET") return json(await social.listAccounts(env));
+        if (what === "stats" && method === "GET") {
+          const days = Math.min(400, Math.max(1, Number(new URL(request.url).searchParams.get("days")) || 30));
+          return json({ series: await social.statsSeries(env, days), latest: await social.latest(env, days) });
+        }
+        if (what === "inbox" && !itemId && method === "GET") {
+          return json(await social.listInbox(env, { status: new URL(request.url).searchParams.get("status") || undefined }));
+        }
+        if (what === "inbox" && itemId && method === "PUT") {
+          const it = await social.updateInbox(env, itemId, await body(request));
+          return it ? json(it) : fail("Not found.", 404);
+        }
+        if (what === "posts") {
+          if (!itemId && method === "GET") return json(await social.listPosts(env));
+          if (!itemId && method === "POST") return json(await social.savePost(env, await body(request)), 201);
+          if (itemId && method === "GET") {
+            const p = await social.getPost(env, itemId);
+            return p ? json(p) : fail("Not found.", 404);
+          }
+          if (itemId && method === "PUT") return json(await social.savePost(env, await body(request), itemId));
+          if (itemId && method === "DELETE") return (await social.deletePost(env, itemId)) ? json({ ok: true }) : fail("Not found.", 404);
+        }
+        break;
+      }
       case "chats": {
+        // Backstage and Social keep separate chat lists: ?space=social / {space: "social"}.
         if (!id && method === "GET") {
-          const { results } = await env.DB.prepare("SELECT * FROM chats ORDER BY updated_at DESC LIMIT 100").all();
+          const space = chat.spaceOf(new URL(request.url).searchParams.get("space"));
+          const { results } = await env.DB.prepare("SELECT * FROM chats WHERE space = ? ORDER BY updated_at DESC LIMIT 100").bind(space).all();
           return json(results);
         }
         if (!id && method === "POST") {
           const chatId = data.newId();
           const now = Date.now();
-          await env.DB.prepare("INSERT INTO chats (id, title, created_at, updated_at) VALUES (?, 'New chat', ?, ?)")
-            .bind(chatId, now, now).run();
-          return json({ id: chatId, title: "New chat", created_at: now, updated_at: now }, 201);
+          const space = chat.spaceOf((await body(request)).space);
+          await env.DB.prepare("INSERT INTO chats (id, title, created_at, updated_at, space) VALUES (?, 'New chat', ?, ?, ?)")
+            .bind(chatId, now, now, space).run();
+          return json({ id: chatId, title: "New chat", created_at: now, updated_at: now, space }, 201);
         }
         if (!id) break;
-        const exists = await env.DB.prepare("SELECT id FROM chats WHERE id = ?").bind(id).first();
+        const exists = await env.DB.prepare("SELECT id, space FROM chats WHERE id = ?").bind(id).first<{ id: string; space: string }>();
         if (!exists) return fail("That chat doesn't exist.", 404);
         if (!sub && method === "GET") return json({ messages: (await chat.loadChat(env, id))?.view ?? [] });
         if (!sub && method === "DELETE") {
@@ -275,7 +322,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params, wait
             : [];
           if (!text && !images.length) return fail("Type a message first.");
           const today = typeof b.today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.today) ? b.today : new Date().toISOString().slice(0, 10);
-          return chat.streamReply(env, waitUntil, new URL(request.url).origin, id, text, images, today);
+          return chat.streamReply(env, waitUntil, new URL(request.url).origin, id, text, images, today, exists.space);
         }
         break;
       }

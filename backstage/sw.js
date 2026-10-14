@@ -6,10 +6,10 @@
 // Signing in or out (or any "please sign in" answer) wipes the saved library, so nobody else
 // signing in on this device (e.g. a team member) can ever be shown Jon's copy. A save that was
 // still in progress when that happened is thrown away (see `epoch`).
-const SHELL = "bs-shell-v2";
+const SHELL = "bs-shell-v3";
 const DATA = "bs-data";
 const MEDIA = "bs-media";
-const SHELL_FILES = ["/backstage/", "/backstage/app.js", "/backstage/app.css", "/backstage/vendor/preact-htm.js", "/backstage/demo.js",
+const SHELL_FILES = ["/backstage/", "/backstage/app.js", "/backstage/app.css", "/backstage/vendor/preact-htm.js", "/backstage/demo.js", "/backstage/social.js",
   "/backstage/manifest.webmanifest", "/backstage/icon-192.png", "/backstage/apple-touch-icon.png"];
 
 // Bumped on every wipe; a response fetched before a wipe is never saved after it.

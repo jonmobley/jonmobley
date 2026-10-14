@@ -10,4 +10,6 @@ export interface Env {
   NEXUS_AGENT_URL?: string;
   /** Lets Backstage change the AI booking settings in Nexus. Set by Nexus's script/agent-booking-admin-key.ts. */
   NEXUS_AGENT_ADMIN_KEY?: string;
+  /** Social: read-only YouTube Data API key (Google project "Moxie Apps"; 1Password "jonmobley YouTube API key"). */
+  YOUTUBE_API_KEY?: string;
 }
