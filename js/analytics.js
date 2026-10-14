@@ -67,6 +67,11 @@
       disable_session_recording: true,
       capture_pageview: true,
       autocapture: true,
+      capture_heatmaps: false,
+      capture_dead_clicks: false,
+      capture_exceptions: false,
+      capture_performance: false,
+      disable_surveys: true,
       mask_all_element_attributes: true,
       mask_all_text: true,
       before_send: function (event) {
