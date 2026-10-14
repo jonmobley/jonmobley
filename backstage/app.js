@@ -20,7 +20,7 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const PIN_LENGTH = 6;
+const PIN_LENGTH = 4;
 const digits = (v) => v.replace(/\D/g, "").slice(0, PIN_LENGTH);
 const fmtMin = (m) => {
   if (!m) return "0 min";
@@ -344,7 +344,7 @@ function App() {
     ${!session.signedIn && html`<div class="modal-wrap">${login}</div>`}`;
 }
 
-// Six boxes, one per number. A single invisible box sits on top and does the typing, so the
+// Four boxes, one per number. A single invisible box sits on top and does the typing, so the
 // phone shows its number pad and Passwords/paste still work.
 function PinBoxes({ value, onChange, onDone, autofocus, autocomplete = "off", label, disabled }) {
   const ref = useRef();

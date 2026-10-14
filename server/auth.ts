@@ -1,4 +1,4 @@
-// Sign-in for /backstage: Jon's 6-digit passcode (typed on the number pad), or an optional team passcode for an assistant
+// Sign-in for /backstage: Jon's 4-digit passcode (typed on the number pad), or an optional team passcode for an assistant
 // (see "Team" below: team members get a limited view, enforced in functions/api).
 // The password is stored as a PBKDF2 hash in the settings table; a signed,
 // HttpOnly cookie keeps the session for a year.
@@ -7,9 +7,10 @@ import type { Env } from "./env";
 const COOKIE = "bs_session";
 const SESSION_DAYS = 365; // stay signed in (owner and team) on your own devices
 const PBKDF2_ITERATIONS = 100_000; // Workers' maximum
-const MAX_FAILURES = 8; // per IP per 15 minutes
-const MAX_FAILURES_ALL = 40; // from everywhere per 15 minutes: a number passcode can't be guessed from many places at once
-const WINDOW_MS = 15 * 60 * 1000;
+// A 4-digit passcode has only 10,000 combinations, so guessing is kept very slow:
+const MAX_FAILURES = 5; // per IP per hour
+const MAX_FAILURES_ALL = 15; // from everywhere per hour, so it can't be guessed from many places at once
+const WINDOW_MS = 60 * 60 * 1000;
 
 /** Passcodes are digits only (the sign-in box shows the phone's number pad). */
 export function passcodeProblem(code: string): string | null {
@@ -145,11 +146,11 @@ export async function login(request: Request, env: Env, password: string): Promi
   await env.DB.prepare("INSERT INTO login_attempts (ip, at) VALUES (?, ?)").bind(ip, Date.now()).run();
   const recent = await env.DB.prepare("SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ?").bind(ip).first<{ n: number }>();
   if ((recent?.n ?? 0) > MAX_FAILURES) {
-    return { error: "Too many tries. Wait 15 minutes and try again.", status: 429 };
+    return { error: "Too many tries. Wait an hour and try again.", status: 429 };
   }
   const everywhere = await env.DB.prepare("SELECT COUNT(*) AS n FROM login_attempts").first<{ n: number }>();
   if ((everywhere?.n ?? 0) > MAX_FAILURES_ALL) {
-    return { error: "Sign-in is paused for a few minutes after too many wrong tries. Try again soon.", status: 429 };
+    return { error: "Sign-in is paused for an hour after too many wrong tries.", status: 429 };
   }
   const stored = await getSetting(env, "password_hash");
   if (stored && (await verifyPassword(password, stored))) {
@@ -182,7 +183,7 @@ export async function changePassword(env: Env, current: string, next: string): P
 // One shared passcode for an assistant or crew. Setting, changing or removing it signs
 // out every team device (the team_secret that signs their cookies is replaced).
 
-export const MIN_PASSCODE = 6; // exactly this many digits (six boxes on the sign-in screen)
+export const MIN_PASSCODE = 4; // exactly this many digits (four boxes on the sign-in screen)
 
 export async function hasTeamPasscode(env: Env): Promise<boolean> {
   return (await getSetting(env, "team_passcode_hash")) !== null;

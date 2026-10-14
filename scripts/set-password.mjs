@@ -1,4 +1,4 @@
-// Sets (or resets) Jon's Backstage passcode (exactly 6 numbers) and signs out every device.
+// Sets (or resets) Jon's Backstage passcode (exactly 4 numbers) and signs out every device.
 //   node scripts/set-password.mjs --local            (local preview database)
 //   node scripts/set-password.mjs --remote           (the live site)
 // Type the passcode when asked, or pass it in BACKSTAGE_PASSWORD.
@@ -14,11 +14,11 @@ if (!where) {
 let password = process.env.BACKSTAGE_PASSWORD;
 if (!password) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  password = await rl.question("New Backstage passcode (exactly 6 numbers): ");
+  password = await rl.question("New Backstage passcode (exactly 4 numbers): ");
   rl.close();
 }
-if (!/^\d{6}$/.test(password || "")) {
-  console.error("Use exactly 6 numbers.");
+if (!/^\d{4}$/.test(password || "")) {
+  console.error("Use exactly 4 numbers.");
   process.exit(1);
 }
 

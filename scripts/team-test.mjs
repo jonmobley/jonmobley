@@ -26,7 +26,7 @@ r = await owner("team-passcode", { method: "PUT", body: { passcode: "123" } });
 ok(r.status === 400, "short passcode refused");
 r = await owner("team-passcode", { method: "PUT", body: { passcode: OWNER_PW } });
 ok(r.status === 400, "passcode can't be the owner password");
-r = await owner("team-passcode", { method: "PUT", body: { passcode: "246824" } });
+r = await owner("team-passcode", { method: "PUT", body: { passcode: "2468" } });
 ok(r.status === 200 && r.data.teamPasscodeSet, "owner turns on team access");
 r = await owner("session");
 ok(r.data.role === "owner" && r.data.teamPasscodeSet === true, "owner session says team access is on");
@@ -35,7 +35,7 @@ const trick = (await owner("tricks", { method: "POST", body: { name: "Test Rings
 const gear = (await owner("equipment", { method: "POST", body: { name: "Test Mic", cost: 250, purchase_url: "https://example.com/mic" } })).data;
 const note = (await owner("notes", { method: "POST", body: { title: "secret note" } })).data;
 
-r = await team("login", { method: "POST", body: { password: "246824" } });
+r = await team("login", { method: "POST", body: { password: "2468" } });
 ok(r.status === 200 && r.data.role === "team", "team member signs in with the passcode");
 r = await team("session");
 ok(r.data.role === "team" && r.data.teamPasscodeSet === undefined, "team session is marked team");
@@ -73,7 +73,7 @@ for (const s of ["notes", "files", "chats", "stats", "agent-settings"]) {
 }
 r = await team(`notes/${note.id}`);
 ok(r.status === 403, "team can't open a note by id");
-r = await team("team-passcode", { method: "PUT", body: { passcode: "990099" } });
+r = await team("team-passcode", { method: "PUT", body: { passcode: "9900" } });
 ok(r.status === 403, "team can't change the passcode");
 r = await team("password", { method: "POST", body: { current: "x", next: "yyyyyyyyyyyy" } });
 ok(r.status === 403, "team can't change Jon's password");
@@ -84,16 +84,16 @@ ok(r.status === 200 && r.data.done, "team can tick off tasks");
 const set = await team("setlists", { method: "POST", body: { name: "Team set", items: [{ trick_id: trick.id }] } });
 ok(set.status === 201, "team can build set lists");
 
-r = await team2("login", { method: "POST", body: { password: "246824" } });
-r = await owner("team-passcode", { method: "PUT", body: { passcode: "135713" } });
+r = await team2("login", { method: "POST", body: { password: "2468" } });
+r = await owner("team-passcode", { method: "PUT", body: { passcode: "1357" } });
 r = await team2("tasks");
 ok(r.status === 401, "changing the passcode signs out team devices");
-r = await team2("login", { method: "POST", body: { password: "135713" } });
+r = await team2("login", { method: "POST", body: { password: "1357" } });
 ok(r.status === 200, "new passcode works");
 r = await owner("team-passcode", { method: "DELETE" });
 r = await team2("tasks");
 ok(r.status === 401, "turning team access off signs them out");
-r = await team2("login", { method: "POST", body: { password: "135713" } });
+r = await team2("login", { method: "POST", body: { password: "1357" } });
 ok(r.status === 401, "old passcode no longer works");
 r = await owner("tricks");
 ok(r.status === 200, "owner still signed in");
@@ -104,12 +104,12 @@ await owner(`equipment/${gear.id}`, { method: "DELETE" });
 await owner(`notes/${note.id}`, { method: "DELETE" });
 await owner(`tasks/${task.data.id}`, { method: "DELETE" });
 await owner(`setlists/${set.data.id}`, { method: "DELETE" });
-// Last, because it locks this computer out of signing in for 15 minutes:
+// Last, because it locks this computer out of signing in for an hour:
 // Wrong guesses at Jon's password still count after a successful team sign-in
 const guesser = client();
 for (let i = 0; i < 4; i++) await guesser("login", { method: "POST", body: { password: "wrong guess" } });
-await owner("team-passcode", { method: "PUT", body: { passcode: "246824" } });
-await guesser("login", { method: "POST", body: { password: "246824" } });
+await owner("team-passcode", { method: "PUT", body: { passcode: "2468" } });
+await guesser("login", { method: "POST", body: { password: "2468" } });
 await owner("team-passcode", { method: "DELETE" });
 for (let i = 0; i < 5; i++) r = await guesser("login", { method: "POST", body: { password: "wrong guess" } });
 ok(r.status === 429, "team sign-in doesn't reset the lockout for password guesses");
