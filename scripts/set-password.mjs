@@ -1,7 +1,7 @@
-// Sets (or resets) the Backstage sign-in password and signs out every device.
+// Sets (or resets) Jon's Backstage passcode (exactly 6 numbers) and signs out every device.
 //   node scripts/set-password.mjs --local            (local preview database)
 //   node scripts/set-password.mjs --remote           (the live site)
-// Type the password when asked, or pass it in BACKSTAGE_PASSWORD.
+// Type the passcode when asked, or pass it in BACKSTAGE_PASSWORD.
 import { execFileSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { webcrypto as crypto } from "node:crypto";
@@ -14,11 +14,11 @@ if (!where) {
 let password = process.env.BACKSTAGE_PASSWORD;
 if (!password) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  password = await rl.question("New Backstage password (10+ characters): ");
+  password = await rl.question("New Backstage passcode (exactly 6 numbers): ");
   rl.close();
 }
-if (!password || password.length < 10) {
-  console.error("Use at least 10 characters.");
+if (!/^\d{6}$/.test(password || "")) {
+  console.error("Use exactly 6 numbers.");
   process.exit(1);
 }
 

@@ -20,6 +20,8 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const PIN_LENGTH = 6;
+const digits = (v) => v.replace(/\D/g, "").slice(0, PIN_LENGTH);
 const fmtMin = (m) => {
   if (!m) return "0 min";
   const h = Math.floor(m / 60);
@@ -342,34 +344,46 @@ function App() {
     ${!session.signedIn && html`<div class="modal-wrap">${login}</div>`}`;
 }
 
+// Six boxes, one per number. A single invisible box sits on top and does the typing, so the
+// phone shows its number pad and Passwords/paste still work.
+function PinBoxes({ value, onChange, onDone, autofocus, autocomplete = "off", label, disabled }) {
+  const ref = useRef();
+  useEffect(() => { if (autofocus) ref.current?.focus(); }, []);
+  const [focused, setFocused] = useState(false);
+  return html`<label class="pin-boxes">
+    <span class="sr">${label}</span>
+    <input ref=${ref} type="password" inputmode="numeric" pattern="[0-9]*" maxlength=${PIN_LENGTH} autocomplete=${autocomplete}
+      value=${value} disabled=${disabled}
+      onFocus=${() => setFocused(true)} onBlur=${() => { setFocused(false); scrollTo(0, 0); }}
+      onInput=${(e) => { const v = digits(e.target.value); e.target.value = v; onChange(v); if (v.length === PIN_LENGTH) onDone?.(v); }} />
+    ${Array.from({ length: PIN_LENGTH }, (_, i) => html`<span class=${`pin-box ${i < value.length ? "full" : ""} ${focused && i === Math.min(value.length, PIN_LENGTH - 1) ? "here" : ""}`}></span>`)}
+  </label>`;
+}
+
 function Login({ session, onIn }) {
-  const [pw, setPw] = useState("");
+  const [pin, setPin] = useState("");
   const [err, setErr] = useState(session.offline ? "Can't reach the server right now." : "");
   const [busy, setBusy] = useState(false);
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!pw) return;
+  const submit = async (code) => {
+    if (code.length !== PIN_LENGTH || busy) return;
     setBusy(true);
     setErr("");
     try {
       await forgetSavedLibrary(); // a new sign-in never sees an earlier person's saved copy
-      await api("login", { method: "POST", body: { password: pw } });
+      await api("login", { method: "POST", body: { password: code } });
       onIn();
     } catch (e2) {
       setErr(e2.message);
+      setPin("");
       setBusy(false);
     }
   };
   return html`<div class="center">
-    <form class="login" onSubmit=${submit}>
+    <form class="login" onSubmit=${(e) => { e.preventDefault(); submit(pin); }}>
       <div class="badge">JM</div>
       <h1>Backstage</h1>
-      <p>${session.passwordSet ? "Sign in with your password, or the team passcode if you're on Jon's team." : "Backstage isn't set up yet."}</p>
-      <label class="field"><span>PASSWORD OR PASSCODE</span>
-        <input class="input" type="password" autocomplete="current-password" autofocus value=${pw} onInput=${(e) => setPw(e.target.value)}
-          onBlur=${() => scrollTo(0, 0)} />
-      </label>
-      <button class="btn primary" disabled=${busy || !pw}>${busy ? "Signing in…" : "Sign in"}</button>
+      <p>${session.passwordSet ? (busy ? "Signing in…" : "Enter your passcode.") : "Backstage isn't set up yet."}</p>
+      <${PinBoxes} label="Passcode" value=${pin} onChange=${(v) => { setPin(v); if (v) setErr(""); }} onDone=${submit} autofocus autocomplete="current-password" disabled=${busy} />
       <div class="err" role="alert">${err}</div>
     </form>
   </div>`;
@@ -2719,7 +2733,7 @@ function Settings({ session, onSession, onClose, onOut }) {
     setMsg(null);
     try {
       await api("password", { method: "POST", body: { current, next } });
-      setMsg({ ok: true, text: "Password changed. Other devices (and team members) are signed out." });
+      setMsg({ ok: true, text: "Passcode changed. Your other devices (and team members) are signed out." });
       setCurrent("");
       setNext("");
     } catch (e2) {
@@ -2759,11 +2773,11 @@ function Settings({ session, onSession, onClose, onOut }) {
     <div class="modal settings">
       <h2>Settings</h2>
       <form class="set-sec" onSubmit=${change}>
-        <h3>Your password</h3>
-        <${Field} label="CURRENT PASSWORD"><input class="input" type="password" autocomplete="current-password" value=${current} onInput=${(e) => setCurrent(e.target.value)} /><//>
-        <${Field} label="NEW PASSWORD (10+ CHARACTERS)"><input class="input" type="password" autocomplete="new-password" value=${next} onInput=${(e) => setNext(e.target.value)} /><//>
+        <h3>Your passcode</h3>
+        <div class="field"><span>CURRENT PASSCODE</span><${PinBoxes} label="Current passcode" value=${current} onChange=${setCurrent} autocomplete="current-password" /></div>
+        <div class="field"><span>NEW PASSCODE</span><${PinBoxes} label="New passcode" value=${next} onChange=${setNext} autocomplete="new-password" /></div>
         ${msg && html`<div class=${msg.ok ? "msg-ok" : "msg-err"}>${msg.text}</div>`}
-        <div class="acts"><button class="btn primary" disabled=${busy || !current || next.length < 10}>Change password</button></div>
+        <div class="acts"><button class="btn primary" disabled=${busy || current.length < PIN_LENGTH || next.length < PIN_LENGTH}>Change passcode</button></div>
       </form>
       ${notifier() && html`<div class="set-sec">
         <h3>Reminders on this iPhone</h3>
@@ -2772,14 +2786,12 @@ function Settings({ session, onSession, onClose, onOut }) {
       <form class="set-sec" onSubmit=${(e) => { e.preventDefault(); setTeam(code); }}>
         <h3>Team access ${teamOn ? html`<span class="pill-on">On</span>` : html`<span class="muted-sm">Off</span>`}</h3>
         <p class="muted-sm">A shared passcode for an assistant or crew. They sign in with it on the same page and can see set lists, music, gear, tasks and links, and view tricks. They never see methods, prices, notes, files or the chat.</p>
-        <${Field} label=${teamOn ? "NEW PASSCODE (6+ CHARACTERS)" : "PASSCODE (6+ CHARACTERS)"}>
-          <input class="input" autocomplete="off" autocapitalize="off" spellcheck="false" value=${code} onInput=${(e) => setCode(e.target.value)} />
-        <//>
+        <div class="field"><span>${teamOn ? "NEW TEAM PASSCODE" : "TEAM PASSCODE"}</span><${PinBoxes} label="Team passcode" value=${code} onChange=${setCode} /></div>
         ${teamMsg && html`<div class=${teamMsg.ok ? "msg-ok" : "msg-err"}>${teamMsg.text}</div>`}
         <div class="acts">
           ${teamOn && html`<button type="button" class="btn danger" disabled=${busy} onClick=${() => setTeam(null)}>Turn off</button>`}
           <div style="flex:1"></div>
-          <button class="btn primary" disabled=${busy || code.length < 6}>${teamOn ? "Change passcode" : "Turn on"}</button>
+          <button class="btn primary" disabled=${busy || code.length < PIN_LENGTH}>${teamOn ? "Change passcode" : "Turn on"}</button>
         </div>
       </form>
       <div class="acts">

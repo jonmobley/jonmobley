@@ -1,4 +1,4 @@
-// Sign-in for /backstage: Jon's password, or an optional team passcode for an assistant
+// Sign-in for /backstage: Jon's 6-digit passcode (typed on the number pad), or an optional team passcode for an assistant
 // (see "Team" below: team members get a limited view, enforced in functions/api).
 // The password is stored as a PBKDF2 hash in the settings table; a signed,
 // HttpOnly cookie keeps the session for a year.
@@ -8,7 +8,14 @@ const COOKIE = "bs_session";
 const SESSION_DAYS = 365; // stay signed in (owner and team) on your own devices
 const PBKDF2_ITERATIONS = 100_000; // Workers' maximum
 const MAX_FAILURES = 8; // per IP per 15 minutes
+const MAX_FAILURES_ALL = 40; // from everywhere per 15 minutes: a number passcode can't be guessed from many places at once
 const WINDOW_MS = 15 * 60 * 1000;
+
+/** Passcodes are digits only (the sign-in box shows the phone's number pad). */
+export function passcodeProblem(code: string): string | null {
+  if (!new RegExp(`^\\d{${MIN_PASSCODE}}$`).test(code)) return `Use exactly ${MIN_PASSCODE} numbers.`;
+  return null;
+}
 
 const enc = new TextEncoder();
 
@@ -140,6 +147,10 @@ export async function login(request: Request, env: Env, password: string): Promi
   if ((recent?.n ?? 0) > MAX_FAILURES) {
     return { error: "Too many tries. Wait 15 minutes and try again.", status: 429 };
   }
+  const everywhere = await env.DB.prepare("SELECT COUNT(*) AS n FROM login_attempts").first<{ n: number }>();
+  if ((everywhere?.n ?? 0) > MAX_FAILURES_ALL) {
+    return { error: "Sign-in is paused for a few minutes after too many wrong tries. Try again soon.", status: 429 };
+  }
   const stored = await getSetting(env, "password_hash");
   if (stored && (await verifyPassword(password, stored))) {
     await env.DB.prepare("DELETE FROM login_attempts WHERE ip = ?").bind(ip).run();
@@ -151,14 +162,17 @@ export async function login(request: Request, env: Env, password: string): Promi
   if (team && (await verifyPassword(password, team))) {
     return { cookie: await teamCookie(env), role: "team" };
   }
-  return { error: "That password didn't work.", status: 401 };
+  return { error: "That passcode didn't work.", status: 401 };
 }
 
-/** Changes the password, signs out other devices, and returns a fresh cookie for this one. */
+/** Changes Jon's passcode, signs out other devices, and returns a fresh cookie for this one. */
 export async function changePassword(env: Env, current: string, next: string): Promise<{ cookie: string } | { error: string }> {
   const stored = await getSetting(env, "password_hash");
-  if (!stored || !(await verifyPassword(current, stored))) return { error: "Your current password didn't match." };
-  if (next.length < 10) return { error: "Use at least 10 characters." };
+  if (!stored || !(await verifyPassword(current, stored))) return { error: "Your current passcode didn't match." };
+  const problem = passcodeProblem(next);
+  if (problem) return { error: problem };
+  const team = await getSetting(env, "team_passcode_hash");
+  if (team && (await verifyPassword(next, team))) return { error: "Use something different from the team passcode." };
   await setSetting(env, "password_hash", await hashPassword(next));
   await setSetting(env, "session_secret", toHex(crypto.getRandomValues(new Uint8Array(32)).buffer));
   return { cookie: await sessionCookie(env) };
@@ -168,7 +182,7 @@ export async function changePassword(env: Env, current: string, next: string): P
 // One shared passcode for an assistant or crew. Setting, changing or removing it signs
 // out every team device (the team_secret that signs their cookies is replaced).
 
-export const MIN_PASSCODE = 6;
+export const MIN_PASSCODE = 6; // exactly this many digits (six boxes on the sign-in screen)
 
 export async function hasTeamPasscode(env: Env): Promise<boolean> {
   return (await getSetting(env, "team_passcode_hash")) !== null;
@@ -180,10 +194,10 @@ export async function setTeamPasscode(env: Env, passcode: string | null): Promis
     await env.DB.prepare("DELETE FROM settings WHERE key IN ('team_passcode_hash', 'team_secret')").run();
     return { ok: true };
   }
-  if (passcode.length < MIN_PASSCODE) return { error: `Use at least ${MIN_PASSCODE} characters.` };
-  if (passcode.length > 100) return { error: "That passcode is too long." };
+  const problem = passcodeProblem(passcode);
+  if (problem) return { error: problem };
   const owner = await getSetting(env, "password_hash");
-  if (owner && (await verifyPassword(passcode, owner))) return { error: "Use something different from your own password." };
+  if (owner && (await verifyPassword(passcode, owner))) return { error: "Use something different from your own passcode." };
   await setSetting(env, "team_passcode_hash", await hashPassword(passcode));
   await setSetting(env, "team_secret", toHex(crypto.getRandomValues(new Uint8Array(32)).buffer));
   return { ok: true };
