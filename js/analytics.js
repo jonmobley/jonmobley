@@ -46,17 +46,18 @@
         }),
         (e.__SV = 1));
     })(document, window.posthog || []);
-    // Strip query strings and #fragments from URLs: sign-in links may carry tokens there.
+    // Hide ids/tokens: drop query strings and #fragments, and replace long id-like path segments.
+    var idSeg = function (s) { return s.length >= 16 && /\d/.test(s) && /^[A-Za-z0-9_-]+$/.test(s) ? ":id" : s; };
+    var cleanPath = function (p) { return p.split("/").map(idSeg).join("/"); };
     var strip = function (u) {
-      try { var x = new URL(u); return x.origin + x.pathname; } catch (e) { return typeof u === "string" ? u.split(/[?#]/)[0] : u; }
+      try { var x = new URL(u); return x.origin + cleanPath(x.pathname); } catch (e) { return typeof u === "string" ? cleanPath(u.split(/[?#]/)[0]) : u; }
     };
-    var scrub = function (bag, onlyUrlKeys) {
+    var fix = function (bag) {
       if (!bag) return;
-      var keys = ["$current_url", "$referrer", "$initial_referrer", "$initial_current_url", "$prev_pageview_pathname"];
       Object.keys(bag).forEach(function (k) {
         var v = bag[k];
-        if (typeof v !== "string" || v.indexOf("://") < 0) return;
-        if (onlyUrlKeys ? /url|referrer/i.test(k) : keys.indexOf(k) >= 0) bag[k] = strip(v);
+        if (typeof v !== "string") return;
+        if ((/url|referrer/i.test(k) && v.indexOf("://") >= 0) || /pathname/i.test(k)) bag[k] = strip(v);
       });
     };
     posthog.init("phc_ygY8gp5pNpDmfL9gCqL3BLegG9uwV7ZsyD4Gg77vqfaw", {
@@ -66,11 +67,13 @@
       disable_session_recording: true,
       capture_pageview: true,
       autocapture: true,
+      mask_all_element_attributes: true,
+      mask_all_text: true,
       before_send: function (event) {
         if (!event) return event;
-        scrub(event.properties, false);
-        scrub(event.$set, true);
-        scrub(event.$set_once, true);
+        fix(event.properties);
+        fix(event.$set);
+        fix(event.$set_once);
         return event;
       },
     });
