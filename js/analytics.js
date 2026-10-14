@@ -74,6 +74,7 @@
         fix(event.properties);
         fix(event.$set);
         fix(event.$set_once);
+        if (event.properties) { delete event.properties.title; delete event.properties.$title; }
         return event;
       },
     });
