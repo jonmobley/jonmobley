@@ -19,6 +19,7 @@ const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
+const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const fmtMin = (m) => {
   if (!m) return "0 min";
   const h = Math.floor(m / 60);
@@ -622,7 +623,7 @@ function TrickList({ ctx }) {
     <div class="bar">
       <h1>Tricks</h1>
       <label class="search"><${Icon} name="search" /><span class="sr">Search tricks</span>
-        <input placeholder="Search tricks, props, tags…" value=${q} onInput=${(e) => setQ(e.target.value)} />
+        <input placeholder="Search tricks…" value=${q} onInput=${(e) => setQ(e.target.value)} />
       </label>
       <div class="chips">
         <button class=${`chip ${!status ? "on" : ""}`} onClick=${() => setStatus("")}>All</button>
@@ -835,9 +836,13 @@ function ShareDialog({ kind, item, ctx, onClose }) {
   </div>`;
 }
 
+// Chrome ignores the autofocus attribute on boxes added after the page loads, so focus them ourselves.
+const focusOnMount = (el) => el && el.focus();
+
 // The big name at the top of an editor: wraps onto more lines instead of cutting off long names.
 function TitleInput({ value, onInput, placeholder, autofocus }) {
   const ref = useRef();
+  useEffect(() => { if (autofocus) ref.current?.focus(); }, []);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -1081,8 +1086,8 @@ function SetlistList({ ctx }) {
               return html`<button class="row" onClick=${() => go(`sets/${s.id}`)}>
                 <div class="ico"><${Icon} name="list" /></div>
                 <div class="txt"><div class="name">${s.name} <${SampleTag} item=${s} /></div>
-                  <div class="sub">${[s.event, s.venue, fmtDate(s.date)].filter(Boolean).join(" · ") || `${s.items.length} items`}</div></div>
-                <div class="right">${s.items.length} items · ${fmtMin(total)}</div>
+                  <div class="sub">${[s.event, s.venue, fmtDate(s.date)].filter(Boolean).join(" · ") || count(s.items.length, "item")}</div></div>
+                <div class="right">${count(s.items.length, "item")} · ${fmtMin(total)}</div>
               </button>`;
             })}</div>`}
     </div>`;
@@ -1102,7 +1107,7 @@ function TrickPicker({ tricks, onPick, label = "Add trick" }) {
   return html`<div class="picker" ref=${ref}>
     <button class="btn" onClick=${() => setOpen(!open)}><${Icon} name="plus" />${label}</button>
     ${open && html`<div class="menu">
-      <input class="input" placeholder="Search tricks…" value=${q} autofocus onInput=${(e) => setQ(e.target.value)} />
+      <input class="input" placeholder="Search tricks…" value=${q} ref=${focusOnMount} onInput=${(e) => setQ(e.target.value)} />
       ${shown.length === 0 && html`<div class="none">${(tricks || []).length ? "No tricks match." : "Add tricks to your library first."}</div>`}
       ${shown.map((t) => html`<button class="opt" onClick=${() => { onPick(t); setOpen(false); setQ(""); }}>
         ${t.name}<span class="sub">${[statusLabel(t.status), t.duration_min ? `${t.duration_min} min` : ""].filter(Boolean).join(" · ")}</span>
@@ -1325,7 +1330,7 @@ function PlaylistList({ ctx }) {
               return html`<button class="row" onClick=${() => go(`playlists/${p.id}`)}>
                 <div class="ico"><${Icon} name="music" /></div>
                 <div class="txt"><div class="name">${p.name} <${SampleTag} item=${p} /></div><div class="sub">${linked ? `For ${linked.name}` : p.description || " "}</div></div>
-                <div class="right">${p.tracks.length} tracks${secs ? ` · ${fmtSec(secs)}` : ""}</div>
+                <div class="right">${count(p.tracks.length, "track")}${secs ? ` · ${fmtSec(secs)}` : ""}</div>
               </button>`;
             })}</div>`}
     </div>`;
@@ -1460,7 +1465,7 @@ function GearList({ ctx }) {
     <div class="bar">
       <h1>Equipment</h1>
       <label class="search"><${Icon} name="search" /><span class="sr">Search equipment</span>
-        <input placeholder="Search gear, models, places…" value=${q} onInput=${(e) => setQ(e.target.value)} />
+        <input placeholder="Search gear…" value=${q} onInput=${(e) => setQ(e.target.value)} />
       </label>
       <div class="chips">
         <button class=${`chip ${!status ? "on" : ""}`} onClick=${() => setStatus("")}>All</button>
@@ -1580,7 +1585,7 @@ function GearPicker({ ctx, value, onChange }) {
     <div class="picker" ref=${ref}>
       <button class="btn" onClick=${() => setOpen(!open)}><${Icon} name="plus" />Add equipment</button>
       ${open && html`<div class="menu">
-        <input class="input" placeholder="Search equipment…" value=${q} autofocus onInput=${(e) => setQ(e.target.value)} />
+        <input class="input" placeholder="Search equipment…" value=${q} ref=${focusOnMount} onInput=${(e) => setQ(e.target.value)} />
         ${options.length === 0 && html`<div class="none">${(ctx.real.equipment || []).length ? "Nothing else matches." : "Add equipment to your inventory first."}</div>`}
         ${options.map((g) => html`<button class="opt" onClick=${() => { onChange([...value, g.id]); setQ(""); }}>
           ${g.name}<span class="sub">${[g.category, g.location].filter(Boolean).join(" · ")}</span>
@@ -1696,7 +1701,7 @@ function TaskAdd({ ctx, setlistId, placeholder = "Add a task…" }) {
     <${Icon} name="plus" />
     <input class="ta-text" placeholder=${placeholder} value=${text} onInput=${(e) => setText(e.target.value)} aria-label="New task" />
     ${picking || due
-      ? html`<input class="ta-date" type="date" value=${due} autofocus aria-label="Due date"
+      ? html`<input class="ta-date" type="date" value=${due} ref=${focusOnMount} aria-label="Due date"
           ref=${(el) => { if (el && picking && !due) { try { el.showPicker(); } catch {} } }}
           onInput=${(e) => setDue(e.target.value)} onBlur=${() => !due && setPicking(false)} />`
       : html`<button type="button" class="ta-when" onClick=${() => setPicking(true)}>+ Date</button>`}
@@ -2079,7 +2084,7 @@ function LinkForm({ ctx, link, onDone }) {
   };
   return html`<form class="link-form" onSubmit=${save}>
     <div class="cols">
-      <${Field} label="WEB ADDRESS"><input class="input" inputmode="url" autofocus=${!link} placeholder="thimble.com" value=${form.url} onInput=${(e) => setForm({ ...form, url: e.target.value })} /><//>
+      <${Field} label="WEB ADDRESS"><input class="input" inputmode="url" ref=${link ? null : focusOnMount} placeholder="thimble.com" value=${form.url} onInput=${(e) => setForm({ ...form, url: e.target.value })} /><//>
       <${Field} label="NAME"><input class="input" placeholder="Thimble" value=${form.title} onInput=${(e) => setForm({ ...form, title: e.target.value })} /><//>
       <${Field} label="GROUP"><input class="input" list="link-folders" placeholder="Insurance, Payments…" value=${form.folder} onInput=${(e) => setForm({ ...form, folder: e.target.value })} /><//>
       <${Field} label="NOTE"><input class="input" placeholder="Optional" value=${form.note} onInput=${(e) => setForm({ ...form, note: e.target.value })} /><//>

@@ -102,7 +102,7 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
   .shell.chat-closed .tabs-wrap { margin-left: 8px; }
 }
 @media (max-width: 900px) {
-  .sidebar-toggle { display: none; }
+  .top .sidebar-toggle { display: none; } /* phones use the Chat button instead */
 }
 .stage {
   flex: 1; min-width: 0; margin-left: 16px; background: var(--panel); border-radius: var(--radius);
@@ -236,6 +236,7 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
 input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.cols > * { min-width: 0; } /* long choices (a set list name) can't push the page wider than the screen */
 .section { display: flex; flex-direction: column; gap: 12px; }
 .section > h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 6px 0 0; font-weight: 600; }
 .foot {
@@ -613,8 +614,9 @@ audio { width: 100%; height: 36px; }
   .msgs { padding: 8px 14px 16px; }
   .bar { padding: 12px; }
   .bar h1 { display: none; }
-  .search { max-width: none; order: 3; flex-basis: 100%; }
-  .bar .chips { flex: 1; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  /* Search + the add button share the first row; filter chips get their own full-width row. */
+  .search { max-width: none; flex: 1 1 0; min-width: 0; }
+  .bar .chips { order: 3; flex: 1 1 100%; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .bar .chips::-webkit-scrollbar { display: none; }
   .bar .chip { flex: none; }
   .bar .grow { display: none; }
