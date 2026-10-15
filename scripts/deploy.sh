@@ -11,7 +11,7 @@ BRANCH="${1:-main}"
 OUT="$(mktemp -d)"
 trap 'rm -rf "${OUT:?}"' EXIT
 git archive HEAD | tar -x -C "${OUT:?}"
-for p in functions server migrations scripts e2e node_modules test-results playwright-report \
+for p in .github functions server migrations scripts e2e node_modules test-results playwright-report \
          wrangler.toml tsconfig.json package.json package-lock.json playwright.config.ts .gitignore .dev.vars; do
   rm -rf "${OUT:?}/$p"
 done
